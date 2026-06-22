@@ -1,0 +1,564 @@
+
+var API='';
+var VIEW='overview',TOK_TAB='overview',WB_MODE='ask',DU_LAYER='experience',DU_FILES=[];
+function esc(s){if(!s)return'';var d=document.createElement('div');d.textContent=typeof s==='string'?s:JSON.stringify(s);return d.innerHTML}
+function $(id){return document.getElementById(id)}
+async function api(path){try{var r=await fetch(API+path);return await r.json()}catch(e){return null}}
+function switchView(v){
+  VIEW=v;
+  document.querySelectorAll('.nav-item').forEach(function(n){n.classList.toggle('active',n.dataset.view===v)});
+  document.querySelectorAll('.panel').forEach(function(p){p.classList.toggle('active',p.id==='panel-'+v)});
+  var titles={overview:['总览','引擎状态 · 实时监控'],debugger:['诊断器','Spine 事件 · 内核诊断'],flow:['记忆流图','因子链图 · 记忆图谱'],token:['算力观测','消耗统计 · 执行归因'],summary:['运行摘要','CSE 叙事 · 状态观测'],workbench:['工作台','对话 · 建议 · 上传']};
+  $('page-title').textContent=titles[v][0];$('page-hint').textContent=titles[v][1];
+  var hints={overview:'认知教学 · 探索系统能力',debugger:'诊断内核状态 · 查看认知追踪',flow:'记忆流图 · 因子关联可视化',token:'算力消耗与执行归因分析',summary:'CSE 叙事 · 人格意向观测',workbench:'对话 · 今日建议 · 批量上传'};
+  $('sidebar-hint-text').textContent=hints[v];
+  $('sidebar-status').textContent='活跃';
+  $('sidebar-dot').className='status-dot green';
+  if(v==='debugger')loadDebugger();if(v==='flow')drawFlowGraph();if(v==='token')loadTokenData();
+  if(v==='summary')loadSummaryData();if(v==='workbench')loadRecommendations();
+}
+function refreshAll(){pollStatus();if(VIEW==='token')loadTokenData();if(VIEW==='flow')drawFlowGraph();if(VIEW==='debugger')loadDebugger();if(VIEW==='summary')loadSummaryData();if(VIEW==='workbench')loadRecommendations();}
+function switchDataSrc(){$('sidebar-status').textContent='切换中';$('sidebar-dot').className='status-dot orange';setTimeout(refreshAll,500)}
+
+async function pollStatus(){
+  var d=await api('/api/status');
+  if(!d){$('sidebar-dot').className='status-dot red';$('sidebar-status').textContent='断开';$('sidebar-health').textContent='系统状态: 离线';return}
+  $('sidebar-dot').className='status-dot green';
+  $('sidebar-status').textContent='就绪';
+  var s=d.status||d.engine_status||'运行中';
+  $('sidebar-health').textContent='系统状态: '+s;
+  var cs=d.cog_state||d;
+  if(cs.accumulated_weight!==undefined)$('cog-belief').textContent=parseFloat(cs.accumulated_weight).toFixed(3);
+  if(cs.active_intent)$('cog-intent').textContent=cs.active_intent;
+  if(cs.iteration!==undefined)$('cog-iter').textContent=cs.iteration;
+  if(cs.execution_count!==undefined)$('cog-exec').textContent=cs.execution_count;
+  if(d.memory_count!==undefined)$('cog-memory').textContent=d.memory_count;
+  if(VIEW==='overview')renderOverview(d);
+}
+
+function renderOverview(d){
+  if(!d)return;
+  var memCount=d.memory_count||d.memories||0, execCount=d.execution_count||0, iter=d.cog_state?.iteration||0;
+  var uptime=d.uptime||d.runtime_seconds||0;
+  var h=Math.floor(uptime/3600),m=Math.floor((uptime%3600)/60),s=Math.floor(uptime%60);
+  var uptimeStr=h+'h '+m+'m '+s+'s';
+  var items=[
+    ['引擎','Engine',d.engine_status||'Active','green'],
+    ['内核活跃','Kernel','活跃 ('+(d.active_skills||d.skills_loaded||0)+'/10)','blue'],
+    ['技能加载','Skills',(d.skills_loaded||0)+'/'+(d.skills_total||10),'orange'],
+    ['执行次数','Execs',execCount,'purple'],
+    ['记忆块数','Memory',memCount,'teal'],
+    ['当前迭代','Iter',iter,'blue'],
+    ['运行时间','Uptime',uptimeStr,'green']
+  ];
+  $('overview-stats').innerHTML=items.map(function(it){return '<div class="stat-card"><div class="stat-label">'+it[0]+'<br><span style="color:#555">'+it[1]+'</span></div><div class="stat-value '+it[3]+'">'+it[2]+'</div></div>'}).join('');
+}
+
+async function loadDebugger(){
+  var d=await api('/api/cog_state');
+  $('cog-debug').textContent=d?JSON.stringify(d,null,2):'No data';
+  filterDebug();
+}
+function filterDebug(){
+  var q=$('debug-filter').value.toLowerCase();
+  if(!q){$('cog-debug').style.display='block';return}
+  $('cog-debug').style.display='block';
+}
+
+/* GraphViewCanvas 1:1 复刻 — 来自原始 CNexus Platform (GraphViewCanvas.tsx + graphViewModel.ts + GraphViewControlsPanel.tsx) */
+
+/* ===== Settings (DEFAULT_GRAPH_SETTINGS) ===== */
+var GV_SETTINGS = {
+  centerForce: 0.08,
+  repelForce: 120,
+  linkForce: 0.04,
+  linkDistance: 72,
+  nodeSize: 1,
+  linkThickness: 1,
+  textFade: 0.35,
+  animate: true,
+  showArrows: false,
+  search: '',
+  tagsOnly: true,
+  orphansOnly: false
+};
+
+/* ===== Data model ===== */
+var GV_SIMS=[],GV_NODES=[],GV_LINKS=[],GV_RAF=0;
+var GV_ZOOM=1,GV_PANX=0,GV_PANY=0,GV_DRAG=null;
+
+function gvGroupColor(group){
+  var m={'goal':'#3fb950','belief':'#c9a227','episode':'#6b8cae','identity':'#f85149','insight':'#3fb950','term':'#8b949e','halo':'#8b949e55'};
+  return m[group]||'#8b949e';
+}
+
+function gvNodeRadius(weight,sizeMul){
+  return (4+weight*5.5)*sizeMul;
+}
+
+function gvFilterNodes(settings){
+  var nodes=GV_SIMS.slice();
+  var q=(settings.search||'').trim().toLowerCase();
+  if(q)nodes=nodes.filter(function(n){return(n.label||'').toLowerCase().indexOf(q)>=0||n.group.indexOf(q)>=0});
+  if(settings.orphansOnly){
+    var linked={};
+    for(var i=0;i<GV_LINKS.length;i++){linked[GV_LINKS[i].source]=1;linked[GV_LINKS[i].target]=1}
+    nodes=nodes.filter(function(n){return n.group==='halo'||!linked[n.id]});
+  }
+  if(settings.tagsOnly)nodes=nodes.filter(function(n){return n.group==='halo'||n.group!=='term'});
+  var ids={};for(var i=0;i<nodes.length;i++)ids[nodes[i].id]=1;
+  var links=[];for(var i=0;i<GV_LINKS.length;i++){if(ids[GV_LINKS[i].source]&&ids[GV_LINKS[i].target])links.push(GV_LINKS[i])}
+  return {nodes:nodes,links:links};
+}
+
+/* ===== Build Graph View Model (1:1 from graphViewModel.ts) ===== */
+function gvBuildGraphViewModel(){
+  var gv_n=[],gv_l=[];
+  GV_SIMS.forEach(function(s,i){
+    var angle=(i/Math.max(GV_SIMS.length,1))*Math.PI*2;
+    var onRing=s.weight<1.05||i%3===0;
+    var r=onRing?220+(i%5)*18:40+Math.random()*80;
+    gv_n.push({
+      id:s.block_id||s.id||('node-'+i),
+      label:s.label||s.input_hint||s.text||s.input||'[无标题]',
+      group:s.group||'episode',
+      weight:s.weight||0.5,
+      x:Math.cos(angle)*r,
+      y:Math.sin(angle)*r,
+      vx:0,vy:0
+    });
+  });
+  // Chain edges
+  for(var i=0;i<gv_n.length-1;i++){
+    gv_l.push({id:'chain-'+gv_n[i].id+'-'+gv_n[i+1].id,source:gv_n[i].id,target:gv_n[i+1].id,strength:0.92});
+  }
+  // Tag group edges (within same group, connect nearby)
+  var byGroup={};
+  for(var i=0;i<gv_n.length;i++){
+    var g=gv_n[i].group;
+    if(!byGroup[g])byGroup[g]=[];
+    byGroup[g].push(gv_n[i].id);
+  }
+  var gKeys=Object.keys(byGroup);
+  for(var gi=0;gi<gKeys.length;gi++){
+    var ids=byGroup[gKeys[gi]];
+    for(var i=0;i<ids.length-1;i++){
+      for(var j=i+1;j<Math.min(i+3,ids.length);j++){
+        var a=ids[i],b=ids[j];
+        var dup=false;
+        for(var li=0;li<gv_l.length;li++){if((gv_l[li].source===a&&gv_l[li].target===b)||(gv_l[li].source===b&&gv_l[li].target===a)){dup=true;break}}
+        if(dup)continue;
+        gv_l.push({id:'tag-'+a+'-'+b,source:a,target:b,strength:0.35});
+      }
+    }
+  }
+  // Halo nodes (fill up to 28 if less)
+  if(gv_n.length<28){
+    var haloCount=Math.max(12,28-gv_n.length);
+    for(var i=0;i<haloCount;i++){
+      var angle=(i/haloCount)*Math.PI*2;
+      var id='halo-'+i;
+      gv_n.push({id:id,label:'',group:'halo',weight:0.35+(i%3)*0.08,x:Math.cos(angle)*(260+(i%4)*12),y:Math.sin(angle)*(260+(i%4)*12),vx:0,vy:0});
+      var anchor=gv_n[i%Math.max(GV_SIMS.length,1)]&&gv_n[i%Math.max(GV_SIMS.length,1)].id;
+      if(anchor)gv_l.push({id:'halo-link-'+i,source:id,target:anchor,strength:0.06});
+      var nextHalo='halo-'+(i+1)%haloCount;
+      if(i<haloCount-1)gv_l.push({id:'halo-ring-'+i,source:id,target:nextHalo,strength:0.04});
+    }
+  }
+  GV_NODES.length=0;GV_LINKS.length=0;
+  GV_NODES.push.apply(GV_NODES,gv_n);
+  GV_LINKS.push.apply(GV_LINKS,gv_l);
+}
+
+/* ===== Draw/Animation loop (1:1 from GraphViewCanvas.tsx) ===== */
+async function drawFlowGraph(){
+  var c=$('flow-canvas');if(!c)return;
+  cancelAnimationFrame(GV_RAF);
+  GV_NODES.length=0;GV_LINKS.length=0;GV_SIMS.length=0;
+  try{
+    var d=await api('/api/memory_dump?limit=20');
+    var entries=d&&(d.entries||d.data||[]);
+    if(entries&&entries.length){
+      entries.forEach(function(e){
+        GV_SIMS.push({id:e.block_id||e.id,label:e.input_hint||e.text||e.input||'[无标题]',weight:e.weight||0.5,group:e.type==='skill_execution_trace'?'insight':'episode'});
+      });
+    }else{
+      // Fallback: build from /api/status
+      var st=await api('/api/status');
+      var cs=st&&st.cog_state||{};
+      if(cs.active_intent)GV_SIMS.push({id:'intent',label:'intent: '+cs.active_intent,weight:0.6,group:'goal'});
+      if(cs.last_strategy)GV_SIMS.push({id:'strate',label:'strategy: '+cs.last_strategy,weight:0.5,group:'belief'});
+      if(cs.accumulated_weight!==undefined)GV_SIMS.push({id:'weight',label:'belief: '+cs.accumulated_weight.toFixed(3),weight:0.8,group:'belief'});
+      if(cs.recall_strength!==undefined)GV_SIMS.push({id:'recall',label:'recall: '+cs.recall_strength.toFixed(3),weight:0.4,group:'insight'});
+      if(st&&st.uptime)GV_SIMS.push({id:'uptime',label:'uptime: '+Math.floor(st.uptime)+'s',weight:0.3,group:'episode'});
+      if(st&&st.skills_loaded)GV_SIMS.push({id:'skills',label:'skills: '+st.skills_loaded,weight:0.55,group:'identity'});
+      if(st&&st.execution_count)GV_SIMS.push({id:'execs',label:'exec: '+st.execution_count,weight:0.45,group:'episode'});
+      if(GV_SIMS.length<3)GV_SIMS.push({id:'cx',label:'CNexus 2.0',weight:0.5,group:'identity'},{id:'stub',label:'stub mode',weight:0.25,group:'episode'});
+    }
+  }catch(e){
+    GV_SIMS.push({id:'err',label:'API unavailable',weight:0.5,group:'episode'},{id:'retry',label:'retry...',weight:0.4,group:'episode'});
+  }
+  gvBuildGraphViewModel();
+
+  var p=c.parentElement;
+  var w=Math.max(p.clientWidth||400,300);
+  var h=Math.max(p.clientHeight||400,window.innerHeight-200,300);
+  c.width=w;c.height=h;
+  var ctx=c.getContext('2d');
+  var cx=w/2,cy=h/2;
+  var view={scale:1,panX:0,panY:0};
+  GV_ZOOM=1;GV_PANX=0;GV_PANY=0;
+
+  var screenToWorld=function(cx2,cy2){
+    var rect=c.getBoundingClientRect();
+    var sx=cx2-rect.left,sy=cy2-rect.top;
+    return {x:(sx-w/2-view.panX)/view.scale,y:(sy-h/2-view.panY)/view.scale};
+  };
+
+  function tick(){
+    var filtered=gvFilterNodes(GV_SETTINGS);
+    var n=filtered.nodes,l=filtered.links;
+    var nm={};for(var i=0;i<n.length;i++)nm[n[i].id]=n[i];
+    if(!c.parentNode){cancelAnimationFrame(GV_RAF);return}
+
+    // Physics (1:1 from GraphViewCanvas.tsx)
+    if(GV_SETTINGS.animate){
+      for(var i=0;i<n.length;i++){
+        if(n[i].fixed)continue;
+        n[i].vx+=(0-n[i].x)*GV_SETTINGS.centerForce*0.002;
+        n[i].vy+=(0-n[i].y)*GV_SETTINGS.centerForce*0.002;
+      }
+      for(var i=0;i<n.length;i++){
+        for(var j=i+1;j<n.length;j++){
+          var a=n[i],b=n[j];
+          var dx=b.x-a.x,dy=b.y-a.y,dist=Math.max(Math.hypot(dx,dy),1);
+          var force=GV_SETTINGS.repelForce/(dist*dist);
+          var fx=(dx/dist)*force,fy=(dy/dist)*force;
+          if(!a.fixed){a.vx-=fx;a.vy-=fy}
+          if(!b.fixed){b.vx+=fx;b.vy+=fy}
+        }
+      }
+      for(var li=0;li<l.length;li++){
+        var a=nm[l[li].source],b=nm[l[li].target];
+        if(!a||!b)continue;
+        var dx=b.x-a.x,dy=b.y-a.y,dist=Math.max(Math.hypot(dx,dy),1);
+        var delta=dist-GV_SETTINGS.linkDistance;
+        var force=delta*GV_SETTINGS.linkForce*l[li].strength;
+        var fx=(dx/dist)*force,fy=(dy/dist)*force;
+        if(!a.fixed){a.vx+=fx;a.vy+=fy}
+        if(!b.fixed){b.vx-=fx;b.vy-=fy}
+      }
+      for(var i=0;i<n.length;i++){
+        if(n[i].fixed)continue;
+        n[i].vx*=0.88;n[i].vy*=0.88;n[i].x+=n[i].vx;n[i].y+=n[i].vy;
+      }
+    }
+
+    // Draw background
+    ctx.fillStyle='#0d1117';ctx.fillRect(0,0,w,h);
+    var grad=ctx.createRadialGradient(cx,cy,20,cx,cy,Math.max(w,h)*0.55);
+    grad.addColorStop(0,'#1a1f2c44');grad.addColorStop(1,'#0d1117');
+    ctx.fillStyle=grad;ctx.fillRect(0,0,w,h);
+
+    ctx.save();
+    ctx.translate(cx+view.panX,cy+view.panY);
+    ctx.scale(view.scale,view.scale);
+
+    // Draw links
+    for(var li=0;li<l.length;li++){
+      var a=nm[l[li].source],b=nm[l[li].target];
+      if(!a||!b)continue;
+      ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);
+      ctx.strokeStyle='#8b949e44';
+      ctx.lineWidth=GV_SETTINGS.linkThickness*(0.6+l[li].strength*0.6);
+      ctx.stroke();
+      if(GV_SETTINGS.showArrows){
+        var ang=Math.atan2(b.y-a.y,b.x-a.x);
+        var mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+        ctx.beginPath();
+        ctx.moveTo(mx,my);
+        ctx.lineTo(mx-Math.cos(ang-0.4)*6,my-Math.sin(ang-0.4)*6);
+        ctx.lineTo(mx-Math.cos(ang+0.4)*6,my-Math.sin(ang+0.4)*6);
+        ctx.closePath();
+        ctx.fillStyle='#8b949e66';ctx.fill();
+      }
+    }
+
+    // Draw nodes
+    for(var i=0;i<n.length;i++){
+      var r=gvNodeRadius(n[i].weight,GV_SETTINGS.nodeSize);
+      var col=gvGroupColor(n[i].group);
+      ctx.beginPath();ctx.arc(n[i].x,n[i].y,r,0,Math.PI*2);
+      ctx.fillStyle=col;
+      ctx.globalAlpha=n[i].group==='halo'?0.35:0.92;
+      ctx.fill();ctx.globalAlpha=1;
+      if(n[i].label&&GV_SETTINGS.textFade>0.05){
+        ctx.font='500 '+Math.max(7,9*GV_SETTINGS.nodeSize)+'px sans-serif';
+        ctx.textAlign='center';ctx.fillStyle='#c9d1d9';
+        ctx.globalAlpha=Math.min(1,GV_SETTINGS.textFade);
+        var maxLen=10;
+        var short=n[i].label.length>maxLen?n[i].label.slice(0,maxLen-1)+'...':n[i].label;
+        ctx.fillText(short,n[i].x,n[i].y+r+10);
+        ctx.globalAlpha=1;
+      }
+    }
+
+    ctx.restore();
+
+    // Empty state
+    if(!n.length){
+      ctx.font='500 14px sans-serif';
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillStyle='#8b949e';
+      ctx.fillText('暂无记忆词条',cx,cy);
+    }
+
+    GV_RAF=requestAnimationFrame(tick);
+  }
+
+  // Input handling (1:1 from GraphViewCanvas.tsx)
+  var pickNode=function(cx2,cy2){
+    var pt=screenToWorld(cx2,cy2);
+    var filtered=gvFilterNodes(GV_SETTINGS);
+    for(var i=filtered.nodes.length-1;i>=0;i--){
+      var n=filtered.nodes[i];
+      var r=gvNodeRadius(n.weight,GV_SETTINGS.nodeSize)+4;
+      if(Math.hypot(n.x-pt.x,n.y-pt.y)<=r)return n;
+    }
+    return null;
+  };
+
+  c.onwheel=function(e){
+    e.preventDefault();
+    var factor=e.deltaY>0?0.92:1.08;
+    view.scale=Math.min(2.5,Math.max(0.35,view.scale*factor));
+    GV_ZOOM=view.scale;
+  };
+
+  c.onpointerdown=function(e){
+    var hit=pickNode(e.clientX,e.clientY);
+    if(hit){
+      hit.fixed=true;
+      GV_DRAG={kind:'node',nodeId:hit.id,lastX:e.clientX,lastY:e.clientY};
+    }else{
+      GV_DRAG={kind:'pan',lastX:e.clientX,lastY:e.clientY};
+    }
+    c.setPointerCapture(e.pointerId);
+  };
+
+  c.onpointermove=function(e){
+    if(!GV_DRAG)return;
+    var dx=e.clientX-GV_DRAG.lastX,dy=e.clientY-GV_DRAG.lastY;
+    GV_DRAG.lastX=e.clientX;GV_DRAG.lastY=e.clientY;
+    if(GV_DRAG.kind==='pan'){view.panX+=dx;view.panY+=dy;GV_PANX=view.panX;GV_PANY=view.panY;return}
+    var node=null;
+    var filtered=gvFilterNodes(GV_SETTINGS);
+    for(var i=0;i<filtered.nodes.length;i++){if(filtered.nodes[i].id===GV_DRAG.nodeId){node=filtered.nodes[i];break}}
+    if(!node)return;
+    node.x+=dx/view.scale;node.y+=dy/view.scale;node.vx=0;node.vy=0;
+  };
+
+  c.onpointerup=function(e){
+    if(GV_DRAG&&GV_DRAG.kind==='node'&&GV_DRAG.nodeId){
+      var node=null;
+      var filtered=gvFilterNodes(GV_SETTINGS);
+      for(var i=0;i<filtered.nodes.length;i++){if(filtered.nodes[i].id===GV_DRAG.nodeId){node=filtered.nodes[i];break}}
+      if(node)node.fixed=false;
+    }
+    GV_DRAG=null;
+    try{c.releasePointerCapture(e.pointerId)}catch(ex){}
+  };
+
+  tick();
+
+  // Reinitialize on settings change
+  window._gvSettingsApply=function(key,val){
+    GV_SETTINGS[key]=val;
+    // Rebuild graph view model if search/tags/orphans changed to reset highlight
+  };
+}
+
+/* ===== Controls Panel (1:1 from GraphViewControlsPanel.tsx) ===== */
+function gvInitControls(){
+  var panel=$('flow-controls');
+  if(!panel)return;
+  var tagLabels={'goal':'目标因子','belief':'信念因子','episode':'情景因子','identity':'身份因子','insight':'洞察因子','term':'术语因子'};
+  var groupSwatch={'goal':'#34D399','belief':'#c9a227','episode':'#6b8cae','identity':'#F87171','insight':'#34D399','term':'#64748B'};
+  
+  function renderPanel(){
+    // Count groups from GV_SIMS
+    var gCounts={};
+    for(var i=0;i<GV_SIMS.length;i++){
+      var g=GV_SIMS[i].group||'episode';
+      gCounts[g]=(gCounts[g]||0)+1;
+    }
+    var gKeys=Object.keys(gCounts);
+    
+    panel.innerHTML=
+      '<div class="gv-grid">'+
+      '  <div class="gv-section" style="grid-area:f"><div class="gv-sec-hdr" onclick="var e=this.nextElementSibling;e.style.display=e.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'.gv-chev\').classList.toggle(\'open\')"><span class="gv-chev open">▼</span> Filters</div><div class="gv-sec-body">'+
+      '    <input class="gv-search" id="gv-search" placeholder="Search..." value="'+esc(GV_SETTINGS.search)+'" oninput="gvSetSearch(this.value)">'+
+      '    <label class="gv-toggle"><span>Tags</span><button class="gv-switch'+(GV_SETTINGS.tagsOnly?' on':'')+'" onclick="gvToggle(\'tagsOnly\')"><span></span></button></label>'+
+      '    <label class="gv-toggle"><span>Orphans</span><button class="gv-switch'+(GV_SETTINGS.orphansOnly?' on':'')+'" onclick="gvToggle(\'orphansOnly\')"><span></span></button></label>'+
+      '  </div></div>'+
+      '  <div class="gv-section" style="grid-area:g"><div class="gv-sec-hdr" onclick="var e=this.nextElementSibling;e.style.display=e.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'.gv-chev\').classList.toggle(\'open\')"><span class="gv-chev open">▼</span> Groups</div><div class="gv-sec-body">'+
+      '    <ul class="gv-groups">'+
+        gKeys.map(function(g){return '<li><span class="gv-swatch" style="background:'+(groupSwatch[g]||'#8b949e')+'"></span><span>'+esc(tagLabels[g]||g)+'</span><span class="gv-gcount">'+gCounts[g]+'</span></li>'}).join('')+
+      '    </ul>'+
+      '  </div></div>'+
+      '  <div class="gv-section" style="grid-area:d"><div class="gv-sec-hdr" onclick="var e=this.nextElementSibling;e.style.display=e.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'.gv-chev\').classList.toggle(\'open\')"><span class="gv-chev open">▼</span> Display</div><div class="gv-sec-body">'+
+      '    <label class="gv-toggle"><span>Arrows</span><button class="gv-switch'+(GV_SETTINGS.showArrows?' on':'')+'" onclick="gvToggle(\'showArrows\')"><span></span></button></label>'+
+      '    '+gvSliderRow('Text fade','textFade',0,1,0.05)+
+      '    '+gvSliderRow('Node size','nodeSize',0.5,2,0.1)+
+      '    '+gvSliderRow('Link width','linkThickness',0.3,3,0.1)+
+      '    <button class="gv-anim-btn" id="gv-anim-btn">'+(GV_SETTINGS.animate?'Animate ON':'Animate')+'</button>'+
+      '  </div></div>'+
+      '  <div class="gv-section" style="grid-area:r"><div class="gv-sec-hdr" onclick="var e=this.nextElementSibling;e.style.display=e.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'.gv-chev\').classList.toggle(\'open\')"><span class="gv-chev open">▼</span> Forces</div><div class="gv-sec-body">'+
+      '    '+gvSliderRow('Center','centerForce',0,0.3,0.01)+
+      '    '+gvSliderRow('Repel','repelForce',20,300,5)+
+      '    '+gvSliderRow('Link','linkForce',0.01,0.15,0.005)+
+      '    '+gvSliderRow('Distance','linkDistance',30,160,2)+
+      '  </div></div>'+
+      '</div>';
+      
+    document.getElementById('gv-anim-btn').onclick=function(){
+      GV_SETTINGS.animate=!GV_SETTINGS.animate;
+      document.getElementById('gv-anim-btn').textContent=GV_SETTINGS.animate?'Animate ON':'Animate';
+      document.getElementById('gv-anim-btn').style.backgroundColor=GV_SETTINGS.animate?'#5eead4':'#21262d';
+      document.getElementById('gv-anim-btn').style.color=GV_SETTINGS.animate?'#0f172a':'#8b949e';
+    };
+  }
+  
+  renderPanel();
+}
+
+function gvSliderRow(label,key,min,max,step){
+  var val=GV_SETTINGS[key];
+  return '<label class="gv-slider-row"><div class="gv-slider-labels"><span>'+label+'</span><span>'+Number(val).toFixed(2).replace(/\.00$/,'')+'</span></div><input type="range" min="'+min+'" max="'+max+'" step="'+step+'" value="'+val+'" oninput="gvSetSlider(\''+key+'\',this.value,this)"></label>';
+}
+
+function gvSetSlider(key,val,inp){
+  GV_SETTINGS[key]=Number(val);
+  var lbl=inp.parentElement.querySelector('.gv-slider-labels span:last-child');
+  if(lbl)lbl.textContent=Number(val).toFixed(2).replace(/\.00$/,'');
+}
+
+function gvSetSearch(val){
+  GV_SETTINGS.search=val;
+}
+
+function gvToggle(key){
+  GV_SETTINGS[key]=!GV_SETTINGS[key];
+  gvInitControls(); // re-render
+}
+
+async function loadTokenData(){
+  var d=await api('/api/exec_trace?limit=50');
+  var traces=d.traces||d.entries||d.data||[];
+  var totalCost=0;traces.forEach(function(t){totalCost+=t.cost||t.weight||0});
+  $('token-stats').innerHTML='<div class="stat-card"><div class="stat-label">轨迹记录</div><div class="stat-value blue">'+traces.length+'</div></div><div class="stat-card"><div class="stat-label">算力消耗</div><div class="stat-value orange">'+totalCost.toFixed(2)+'</div></div>';
+  if(traces.length){
+    var html='<table><thead><tr><th>#</th><th>Trace ID</th><th>类型</th><th>消耗</th><th>时间</th></tr></thead><tbody>';
+    traces.slice(0,50).forEach(function(t,i){
+      html+='<tr><td>'+(i+1)+'</td><td style="font-family:var(--fontMono);font-size:10px">'+esc(t.trace_id||t.id||'—')+'</td><td>'+esc(t.type||t.kind||'—')+'</td><td>'+(typeof t.cost==='number'?t.cost.toFixed(3):typeof t.weight==='number'?t.weight.toFixed(3):'—')+'</td><td>'+esc(t.timestamp||t.time||'—')+'</td></tr>';
+    });
+    html+='</tbody></table>';$('token-table').innerHTML=html;
+  }else $('token-table').innerHTML='<div style="padding:16px;text-align:center;color:var(--textMuted);font-size:12px">暂无执行轨迹数据</div>';
+}
+
+async function loadSummaryData(){
+  var d=await api('/api/status');if(!d)return;
+  var cs=d.cog_state||d;
+  var narrative=cs.narrative||cs.cse_narrative||'';
+  if(narrative){$('vsp-body').innerHTML='<div class="narrative-text">'+esc(narrative)+'</div>'}
+  else{$('vsp-body').innerHTML='<div class="narrative-empty">等待 Runtime 连接 · CSE 叙事数据尚未就绪</div>'}
+}
+
+async function loadRecommendations(){
+  var d=await api('/api/status');var ov=d&&d.overview||{};
+  var acts=ov.top_actions||ov.recommendations||[];
+  if(acts.length){
+    var top=acts[0];
+    $('rec-hero-title').textContent=top.title||top.action||'分析当前状态';
+    $('rec-hero-sub').textContent=top.description||'检查系统认知状态，寻找优化机会';
+    var tags='';if(top.priority){tags+='<span class="rec-tag" style="background:var(--orangeSoft);color:var(--orange)">优先级: '+top.priority+'</span>'}
+    if(top.reversibility){tags+='<span class="rec-tag" style="background:var(--blueSoft);color:var(--blue)">可逆性: '+top.reversibility+'</span>'}
+    $('rec-tags').innerHTML=tags;
+    $('rec-why-text').innerHTML=top.rationale||top.reason||'基于当前认知状态分析';
+    $('rec-why').style.display='block';$('rec-apply-btn').style.display='block';$('rec-error').style.display='none';
+    if(acts.length>1){$('rec-other-list').style.display='block';$('rec-other-items').innerHTML=acts.slice(1).map(function(a){return '<div class="rec-other-item">'+(a.title||a.action||'')+'</div>'}).join('')}
+  }else{$('rec-error').style.display='block';$('rec-hero-title').textContent='—';$('rec-hero-sub').textContent='暂无建议'}
+}
+
+async function wbSend(){
+  var inp=$('wb-input'),t=inp.value.trim();if(!t)return;inp.value='';
+  var area=$('wb-reply-area');area.innerHTML='<div class="it-reply-text">正在思考...</div>';
+  try{
+    var d=await api('/api/converse?text='+encodeURIComponent(t));
+    var reply=typeof d.reply==='object'?JSON.stringify(d.reply,null,2):d.reply||'无回复';
+    area.innerHTML='<div style="font-size:11px;color:var(--textLight);margin-bottom:8px;text-align:right">> '+esc(t)+'</div><div class="it-reply-text">'+esc(reply)+'</div>';
+  }catch(e){area.innerHTML='<div class="it-reply-text" style="color:var(--red)">请求失败</div>'}
+}
+
+function switchWBMode(m,btn){
+  WB_MODE=m;
+  document.querySelectorAll('.it-mode-btn').forEach(function(b){b.classList.toggle('active',b.dataset.mode===m)});
+  var hints={ask:'向 CNexus 引擎提出问题或命令...',record:'记录当前观察或想法到记忆...',analyze:'选择数据进行分析...',recall:'搜索记忆中的相关信息...'};
+  $('wb-hint').textContent=hints[m];
+  $('wb-reply-area').innerHTML='<div class="it-placeholder">'+hints[m]+'</div>';
+}
+
+function switchDULayer(l,btn){DU_LAYER=l;document.querySelectorAll('.du-layer-btn').forEach(function(b){b.classList.toggle('active',b.dataset.layer===l)})}
+function handleFileDrop(files){
+  for(var i=0;i<files.length;i++){if(!DU_FILES.find(function(f){return f.name===files[i].name}))DU_FILES.push(files[i])}
+  renderDUFiles();
+  var dz=document.getElementById('du-dropzone');if(dz)dz.classList.remove('dragging');
+}
+function renderDUFiles(){
+  if(DU_FILES.length){
+    $('du-file-list').innerHTML=DU_FILES.map(function(f,i){return '<div class="du-file-item"><span class="du-file-name">'+esc(f.name)+'</span><button class="du-file-remove" onclick="DU_FILES.splice('+i+',1);renderDUFiles()">✕</button></div>'}).join('');
+    $('du-import-btn').textContent='📥 导入 ('+DU_FILES.length+')';$('du-import-btn').disabled=false;
+  }else{$('du-file-list').innerHTML='';$('du-import-btn').textContent='📥 导入 (0)';$('du-import-btn').disabled=true}
+}
+function duClear(){DU_FILES=[];renderDUFiles();$('du-note').className='du-note';$('du-note').textContent=''}
+async function duImport(){
+  if(!DU_FILES.length)return;
+  $('du-note').className='du-note loading';
+  $('du-note').textContent='正在上传 '+DU_FILES.length+' 个文件...';
+  $('du-import-btn').disabled=true;
+  var fd=new FormData();
+  for(var i=0;i<DU_FILES.length;i++)fd.append('files',DU_FILES[i]);
+  try{
+    var r=await fetch(API+'/api/upload',{method:'POST',body:fd});
+    var d=await r.json();
+    if(d.ok||d.status==='success'||d.imported_blocks_count){
+      var ok=d.imported_blocks_count||d.count||DU_FILES.length;
+      $('du-note').className='du-note success';
+      $('du-note').textContent='✅ 已导入 '+ok+' 条记忆 ('+DU_LAYER+')';
+      DU_FILES=[];renderDUFiles();
+      // Refresh memory flow graph
+      if(VIEW==='flow')drawFlowGraph();
+    }else{
+      $('du-note').className='du-note error';
+      $('du-note').textContent='❌ 导入失败: '+(d.error||d.message||'未知错误');
+    }
+  }catch(e){
+    $('du-note').className='du-note error';
+    $('du-note').textContent='❌ 网络错误: '+e.message;
+  }
+  $('du-import-btn').disabled=false;
+}
+
+// Init
+// Expose all functions to window for onclick bindings
+window.pollStatus=pollStatus;window.switchView=switchView;
+window.drawFlowGraph=drawFlowGraph;window.loadTokenData=loadTokenData;
+window.loadSummaryData=loadSummaryData;window.loadRecommendations=loadRecommendations;
+window.wbSend=wbSend;window.switchWBMode=switchWBMode;
+window.handleFileDrop=handleFileDrop;window.duImport=duImport;
+window.duClear=duClear;
+window.gvInitControls=gvInitControls;
+
+pollStatus();setInterval(pollStatus,3000);
+if($('flow-canvas')){drawFlowGraph();gvInitControls();}
+setInterval(drawFlowGraph,5000);

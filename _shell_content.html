@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang=zh-CN>
+<head>
+<meta charset=UTF-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>CNexus 2.0 Console</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;background:#060912;color:#e1e4e8;min-height:100vh;overflow-x:hidden}
+:root{--bg:#060912;--surface:#0d1117;--surface2:#161b22;--border:#21262d;--text:#e1e4e8;--text-muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--red:#f85149;--orange:#d29922;--purple:#bc8cff;--blue:#58a6ff;--teal:#5eead4}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-thumb{background:#30363d;border-radius:3px}
+body{font-size:13px}
+.app{display:flex;min-height:100vh}
+.sidebar{width:220px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column}
+.sidebar-brand{padding:12px 16px 10px;border-bottom:1px solid var(--border)}
+.sidebar-brand .title{font-size:14px;font-weight:700;color:var(--accent)}
+.sidebar-brand .sub{font-size:10px;color:var(--text-muted);margin-top:1px}
+.sidebar-nav{flex:1;overflow-y:auto;padding:4px 0}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 16px;cursor:pointer;color:var(--text-muted);font-size:12px;transition:all .15s;border-left:3px solid transparent}
+.nav-item:hover{color:var(--text);background:rgba(255,255,255,.03)}
+.nav-item.active{color:var(--accent);border-left-color:var(--accent);background:rgba(88,166,255,.06)}
+.nav-item .icon{width:18px;text-align:center;font-size:13px}
+.sidebar-footer{padding:8px 16px;border-top:1px solid var(--border);font-size:10px;color:var(--text-muted)}
+.status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}
+.status-dot.green{background:var(--green)}
+.status-dot.orange{background:var(--orange)}
+.status-dot.red{background:var(--red)}
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+.cog-bar{display:flex;gap:8px;flex-wrap:wrap;padding:6px 16px;background:var(--surface);border-bottom:1px solid var(--border);font-size:10px;flex-shrink:0}
+.cog-bar .item{display:flex;align-items:center;gap:4px;color:var(--text-muted)}
+.cog-bar .item .tag{padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600}
+.main-header{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0}
+.main-header h2{font-size:13px;font-weight:600}
+.main-header .hint{font-size:10px;color:var(--text-muted)}
+.main-body{flex:1;overflow-y:auto;padding:12px 16px}
+.panel{display:none}
+.panel.active{display:block}
+.panel-title{font-size:13px;font-weight:600;margin-bottom:10px;color:var(--accent)}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:12px}
+.stat-card{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px}
+.stat-card .label{font-size:10px;color:var(--text-muted);margin-bottom:3px}
+.stat-card .value{font-size:18px;font-weight:700}
+.stat-card .value.green{color:var(--green)}.stat-card .value.orange{color:var(--orange)}
+.stat-card .value.blue{color:var(--blue)}.stat-card .value.purple{color:var(--purple)}
+.stat-card .value.teal{color:var(--teal)}
+.table-wrap{overflow-x:auto;margin-bottom:12px}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--border)}
+th{color:var(--text-muted);font-weight:500;position:sticky;top:0;background:var(--bg)}
+tr:hover td{background:rgba(255,255,255,.02)}
+.chat-box{display:flex;flex-direction:column;gap:6px;max-height:450px;overflow-y:auto;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;margin-bottom:10px}
+.msg{max-width:85%;padding:6px 10px;border-radius:5px;font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.msg.user{align-self:flex-end;background:#1f6feb;color:#fff}
+.msg.bot{align-self:flex-start;background:var(--border);color:var(--text)}
+.chat-input{display:flex;gap:6px}
+.chat-input input{flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:5px;background:var(--surface);color:var(--text);font-size:12px;outline:none}
+.chat-input input:focus{border-color:var(--accent)}
+.chat-input button{padding:8px 16px;border:none;border-radius:5px;background:var(--accent);color:#fff;font-size:12px;cursor:pointer}
+.chat-input button:disabled{opacity:.5}
+.flow-container{background:var(--surface);border:1px solid var(--border);border-radius:6px;overflow:hidden;position:relative;height:360px;margin-bottom:12px}
+.flow-container canvas{width:100%;height:100%;display:block}
+.btn-group{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.btn{padding:5px 12px;border:1px solid var(--border);border-radius:5px;background:var(--surface);color:var(--text);font-size:11px;cursor:pointer;transition:all .15s}
+.btn:hover{background:rgba(255,255,255,.04);border-color:var(--accent)}
+.btn.active{background:rgba(88,166,255,.1);border-color:var(--accent);color:var(--accent)}
+pre.debug{font-size:10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px;overflow:auto;max-height:500px;color:var(--text-muted);font-family:'SFMono-Regular',Consolas,monospace;line-height:1.4}
+#factor-graph-wrap{display:grid;grid-template-columns:1fr 320px;gap:12px}
+.factor-detail{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:11px}
+.tag-goal{color:var(--green)}.tag-belief{color:var(--orange)}.tag-identity{color:var(--purple)}
+.tag-insight{color:var(--teal)}.tag-episode{color:var(--blue)}.tag-term{color:var(--text-muted)}
+@media(max-width:768px){.sidebar{width:50px}.nav-text{display:none}.sidebar-brand .title,.sidebar-brand .sub{display:none}.nav-item{padding:8px;justify-content:center}}
+</style>
+</head>
+<body>
+<div class=app id=app>
+<aside class=sidebar>
+<div class=sidebar-brand><div class=title>CNexus 2.0</div><div class=sub id=sidebar-sub>认知控制台</div></div>
+<nav class=sidebar-nav>
+<div class="nav-item active" data-view=overview><span class=icon>H</span><span class=nav-text>总览</span></div>
+<div class=nav-item data-view=token><span class=icon>T</span><span class=nav-text>算力观测</span></div>
+<div class=nav-item data-view=flow><span class=icon>F</span><span class=nav-text>记忆流图</span></div>
+<div class=nav-item data-view=summary><span class=icon>S</span><span class=nav-text>运行摘要</span></div>
+<div class=nav-item data-view=workbench><span class=icon>C</span><span class=nav-text>工作台</span></div>
+<div class=nav-item data-view=debugger><span class=icon>D</span><span class=nav-text>诊断器</span></div>
+</nav>
+<div class=sidebar-footer><div style="display:flex;align-items:center;gap:4px"><span class="status-dot green" id=status-dot></span><span id=status-text>就绪</span></div></div>
+</aside>
+<div class=main>
+<div class=cog-bar id=cog-bar>
+<div class=item>信念<span class=tag style="background:rgba(63,185,80,.15);color:var(--green)" id=cog-belief>0.00</span></div>
+<div class=item>意图<span class=tag style="background:rgba(210,153,34,.15);color:var(--orange)" id=cog-intent>—</span></div>
+<div class=item>迭代<span class=tag style="background:rgba(88,166,255,.12);color:var(--blue)" id=cog-iter>0</span></div>
+<div class=item>执行<span class=tag style="background:rgba(188,140,255,.12);color:var(--purple)" id=cog-exec>0</span></div>
+<div class=item>记忆<span class=tag style="background:rgba(94,234,212,.12);color:var(--teal)" id=cog-memory>0</span></div>
+</div>
+<div class=main-header><div><h2 id=page-title>总览</h2><p class=hint id=page-hint>系统实时状态</p></div><button class=btn onclick=refreshAll()>R 刷新</button></div>
+<div class=main-body>
+<div class="panel active" id=panel-overview>
+<div class=stat-grid id=overview-stats></div>
+<div class=stat-grid id=overview-cards></div>
+<div style="font-size:12px;color:var(--text-muted);line-height:1.5" id=overview-detail></div>
+</div>
+<div class=panel id=panel-token>
+<div class=btn-group id=token-tabs>
+<button class="btn active" data-tab=overview>总览</button>
+<button class=btn data-tab=events>消耗事件</button>
+<button class=btn data-tab=field>热力分布</button>
+<button class=btn data-tab=bind>执行归因</button>
+<button class=btn data-tab=influence>因果权重</button>
+<button class=btn data-tab=identity>执行标识</button>
+</div>
+<div class=stat-grid id=token-stats></div>
+<div class=table-wrap id=token-table></div>
+</div>
+<div class=panel id=panel-flow>
+<p style="font-size:11px;color:var(--text-muted);margin-bottom:6px">记忆块因子图谱 | node=block edge=skill/iteration link</p>
+<div id=factor-graph-wrap>
+<div>
+<div class=flow-container id=flow-canvas-wrap><canvas id=flow-canvas></canvas></div>
+<div class=stat-grid id=flow-stats></div>
+</div>
+<div class=factor-detail id=factor-detail><b>因子详情</b><p style=font-size:10px;margin-top:4px>点击图谱节点查看</p></div>
+</div>
+</div>
+<div class=panel id=panel-summary>
+<div class=stat-grid id=summary-stats></div>
+<div class=table-wrap id=summary-table></div>
+</div>
+<div class=panel id=panel-workbench>
+<div class=chat-box id=chat-box></div>
+<div class=chat-input><input id=chat-input placeholder="输入消息... Enter 发送" onkeydown="if(event.key==='Enter')sendChat()"><button id=send-btn onclick=sendChat()>发送</button></div>
+</div>
+<div class=panel id=panel-debugger>
+<div class=stat-grid id=debug-stats></div>
+<pre class=debug id=debug-raw></pre>
+</div>
+</div></div></div>
+<script>
+const API='';let flowData=[];let flowAnim=null;
+async function api(p){const r=await fetch(API+p);return r.json()}
+
+const VIEWS={overview:{title:'总览',hint:'系统实时状态'},token:{title:'算力观测台',hint:'消耗统计 | 执行归因'},flow:{title:'记忆流图',hint:'因子图谱 | 力导向网络'},summary:{title:'运行摘要',hint:'执行历史 | 运行脉搏'},workbench:{title:'工作台',hint:'对话 | 认知交互'},debugger:{title:'诊断器',hint:'内核状态 | 详细诊断 | 技能路由'}};
+function switchView(v){
+ document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id==='panel-'+v));
+ document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.view===v));
+ const m=VIEWS[v]||{};document.getElementById('page-title').textContent=m.title||v;
+ document.getElementById('page-hint').textContent=m.hint||'';
+ if(v==='overview')loadOverview();
+ else if(v==='token')loadToken();
+ else if(v==='flow'){loadFlow();setTimeout(drawFlow,200);}
+ else if(v==='summary')loadSummary();
+ else if(v==='debugger')loadDebugger();
+}
+document.querySelectorAll('.nav-item').forEach(el=>el.addEventListener('click',()=>switchView(el.dataset.view)));
+
+async function loadOverview(){
+ const d=await api('/api/status');
+ const cs=d.cog_state||{};
+ const w=cs.active_intent||'—',b=(cs.accumulated_weight||0).toFixed(3);
+ document.getElementById('overview-stats').innerHTML=
+ '<div class=stat-card><div class=label>引擎</div><div class="value '+(d.engine_initialized?'green':'orange')+'">'+(d.engine_initialized?'Running':'Idle')+'</div></div>'+
+ '<div class=stat-card><div class=label>内核活跃</div><div class="value '+(d.active?'green':'red')+'">'+(d.active?'Active':'Stopped')+'</div></div>'+
+ '<div class=stat-card><div class=label>技能加载</div><div class=value>'+Math.max(0,d.skills_loaded||0)+'</div></div>'+
+ '<div class=stat-card><div class=label>执行次数</div><div class="value purple">'+(d.execution_count||0)+'</div></div>'+
+ '<div class=stat-card><div class=label>记忆块数</div><div class="value orange">'+(d.memory_count||0)+'</div></div>'+
+ '<div class=stat-card><div class=label>当前迭代</div><div class=value>'+(d.current_iteration||0)+'</div></div>'+
+ '<div class=stat-card><div class=label>运行时间</div><div class="value blue">'+((d.uptime||0).toFixed(1))+'s</div></div>';
+ document.getElementById('overview-cards').innerHTML=
+ '<div class=stat-card><div class=label>active_intent</div><div class="value orange">'+esc(w)+'</div></div>'+
+ '<div class=stat-card><div class=label>belief</div><div class="value green">'+b+'</div></div>'+
+ '<div class=stat-card><div class=label>recall_strength</div><div class="value teal">'+(cs.recall_strength||0).toFixed(3)+'</div></div>'+
+ '<div class=stat-card><div class=label>consecutive_intent</div><div class=value>'+(cs.consecutive_same_intent||0)+'</div></div>';
+ updateCog(d);
+}
+
+async function loadToken(){
+ const d=await api('/api/exec_trace');const tr=d.traces||[];
+ document.getElementById('token-stats').innerHTML=
+ '<div class=stat-card><div class=label>执行轨迹总数</div><div class="value blue">'+(d.total||0)+'</div></div>'+
+ '<div class=stat-card><div class=label>显示</div><div class=value>'+tr.length+'</div></div>';
+ document.getElementById('token-table').innerHTML=tr.length?
+ '<table><thead><tr><th>#</th><th>Input</th><th>Strategy</th><th>Iter</th><th>Skills</th><th>Latency</th></tr></thead><tbody>'+
+ tr.map((t,i)=>'<tr><td>'+(i+1)+'</td><td>'+esc((t.input||'').slice(0,35))+'</td><td>'+(t.strategy||'—')+'</td><td>'+(t.iteration||'—')+'</td><td>'+(Array.isArray(t.skills)?t.skills.length:t.skills||0)+'</td><td>'+(t.latency_ms||'—')+'</td></tr>').join('')+
+ '</tbody></table>':'<p style="color:var(--text-muted);font-size:12px">暂无执行记录</p>';
+}
+
+function drawFlow(){
+ const c=document.getElementById('flow-canvas'),w=document.getElementById('flow-canvas-wrap');
+ if(flowData.length<1||!c||!w)return;
+ c.width=w.clientWidth||600;c.height=w.clientHeight||360;
+ const ctx=c.getContext('2d'),W=c.width,H=c.height;
+ const nodes=flowData.map((e,i)=>{
+  const a=(i/flowData.length)*Math.PI*2-Math.PI/2;
+  const r=Math.min(W,H)*0.32;
+  return{
+   id:e.block_id||i,
+   label:(e.skill||e.type||'mem').slice(0,14),
+   wgt:e.weight||0.5,
+   iter:e.iteration||0,
+   x:W/2+Math.cos(a)*r+(Math.random()-.5)*20,
+   y:H/2+Math.sin(a)*r+(Math.random()-.5)*20,
+   vx:0,vy:0,
+   rad:4+(e.weight||.5)*10
+  };
+ });
+ for(let it=0;it<30;it++){
+  for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){
+   const dx=nodes[j].x-nodes[i].x,dy=nodes[j].y-nodes[i].y,dist=Math.max(Math.sqrt(dx*dx+dy*dy),1);
+   const f=15000/(dist*dist);
+   nodes[i].vx-=(dx/dist)*f;nodes[i].vy-=(dy/dist)*f;
+   nodes[j].vx+=(dx/dist)*f;nodes[j].vy+=(dy/dist)*f;
+  }
+  for(const n of nodes){n.vx+=(W/2-n.x)*.006;n.vy+=(H/2-n.y)*.006;n.x+=n.vx;n.y+=n.vy;n.vx*=.9;n.vy*=.9}
+ }
+ ctx.clearRect(0,0,W,H);ctx.fillStyle='#0d1117';ctx.fillRect(0,0,W,H);
+ const cols=['#3fb950','#58a6ff','#d29922','#bc8cff','#5eead4'];
+ for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){
+  const dx=nodes[j].x-nodes[i].x,dy=nodes[j].y-nodes[i].y,d=Math.sqrt(dx*dx+dy*dy);
+  if(d<260&&d>10){
+   const sim=nodes[i].wgt+nodes[j].wgt>1?0.8:0.4;
+   ctx.strokeStyle='rgba(48,54,61,'+(sim*0.4*(1-d/260))+')';
+   ctx.lineWidth=0.6+(sim*0.4);ctx.beginPath();ctx.moveTo(nodes[i].x,nodes[i].y);ctx.lineTo(nodes[j].x,nodes[j].y);ctx.stroke();
+  }
+ }
+ for(const n of nodes){
+  const c2=cols[Math.floor(n.wgt*5)%5];
+  const g=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,n.rad);
+  g.addColorStop(0,c2);g.addColorStop(1,c2+'44');ctx.fillStyle=g;ctx.beginPath();ctx.arc(n.x,n.y,n.rad,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.55)';ctx.font='9px sans-serif';ctx.textAlign='center';ctx.fillText(n.label,n.x,n.y+n.rad+10);
+ }
+ const factorDetail=document.getElementById('factor-detail');
+ c.onclick=function(e){
+  const rect=c.getBoundingClientRect();const mx=e.clientX-rect.left,my=e.clientY-rect.top;
+  let hit=null;let minDist=15;
+  for(const n of nodes){
+   const d2=Math.sqrt((mx-n.x)*(mx-n.x)+(my-n.y)*(my-n.y));
+   if(d2<minDist){hit=n;minDist=d2}
+  }
+  if(hit){
+   const entry=flowData.find(f=>f.block_id===hit.id)||{};
+   factorDetail.innerHTML='<b style=color:'+cols[Math.floor(hit.wgt*5)%5]+'>'+esc(hit.label)+'</b>'+
+    '<p style=font-size:10px;margin-top:6px><b>Block ID:</b> '+(entry.block_id||'')+'<br>'+
+    '<b>Type:</b> '+(entry.type||'—')+'<br>'+
+    '<b>Weight:</b> '+(entry.weight||0).toFixed(3)+'<br>'+
+    '<b>Iteration:</b> '+(entry.iteration||0)+'<br>'+
+    '<b>Input:</b> '+(entry.input||'').slice(0,40)+'</p>';
+  }else{
+   factorDetail.innerHTML='<b>因子详情</b><p style=font-size:10px;margin-top:4px>点击图谱节点查看</p>';
+  }
+ };
+ if(nodes.length>1&&flowAnim===null){
+  let pts=[];
+  for(let i=0;i<Math.min(12,nodes.length*2);i++){const s=nodes[~~(Math.random()*nodes.length)],d=nodes[~~(Math.random()*nodes.length)];pts.push({from:s,to:d,t:Math.random(),sp:.005+Math.random()*.01})}
+  function anim(){
+   if(!document.getElementById('panel-flow').classList.contains('active')){flowAnim=null;return}
+   for(const p of pts){p.t+=p.sp;if(p.t>1){p.t=0;p.from=nodes[~~(Math.random()*nodes.length)];p.to=nodes[~~(Math.random()*nodes.length)]}
+    const x=p.from.x+(p.to.x-p.from.x)*p.t,y=p.from.y+(p.to.y-p.from.y)*p.t;
+    ctx.fillStyle='rgba(88,166,255,'+(Math.sin(p.t*Math.PI)*.4)+')';ctx.beginPath();ctx.arc(x,y,1.5,0,Math.PI*2);ctx.fill()
+   }
+   flowAnim=requestAnimationFrame(anim)
+  }
+  flowAnim=requestAnimationFrame(anim)
+ }
+}
+async function loadFlow(){
+ const d=await api('/api/memory_dump?limit=40');flowData=d.entries||[];
+ document.getElementById('flow-stats').innerHTML=
+ '<div class=stat-card><div class=label>记忆块总数</div><div class="value blue">'+(d.total_entries||0)+'</div></div>'+
+ '<div class=stat-card><div class=label>图谱显示</div><div class=value>'+flowData.length+'</div></div>'+
+ '<div class=stat-card><div class=label>节点类型</div><div class="value teal">'+new Set(flowData.map(e=>e.skill)).size+'</div></div>';
+}
+
+async function loadSummary(){
+ const d=await api('/api/exec_trace?limit=50');const tr=d.traces||[];
+ document.getElementById('summary-stats').innerHTML=
+ '<div class=stat-card><div class=label>总执行</div><div class="value blue">'+(d.total||0)+'</div></div>'+
+ '<div class=stat-card><div class=label>显示</div><div class=value>'+tr.length+'</div></div>';
+ document.getElementById('summary-table').innerHTML=tr.length?
+ '<table><thead><tr><th>#</th><th>Input</th><th>Strategy</th><th>Iter</th><th>Skills</th><th>Latency</th></tr></thead><tbody>'+
+ tr.map((t,i)=>'<tr><td>'+(i+1)+'</td><td>'+esc((t.input||'').slice(0,35))+'</td><td>'+(t.strategy||'—')+'</td><td>'+(t.iteration||'—')+'</td><td>'+(Array.isArray(t.skills)?t.skills.length:t.skills||0)+'</td><td>'+(t.latency_ms||'—')+'</td></tr>').join('')+
+ '</tbody></table>':'<p style="color:var(--text-muted)">暂无执行记录</p>';
+}
+
+async function sendChat(){
+ const inp=document.getElementById('chat-input'),btn=document.getElementById('send-btn');
+ const t=inp.value.trim();if(!t)return;inp.value='';btn.disabled=true;
+ const box=document.getElementById('chat-box');
+ box.innerHTML+='<div class="msg user">'+esc(t)+'</div>';box.scrollTop=box.scrollHeight;
+ try{const d=await api('/api/converse?text='+encodeURIComponent(t));
+  const reply=typeof d.reply==='object'?JSON.stringify(d.reply,null,2):d.reply||'[no reply]';
+  box.innerHTML+='<div class="msg bot">'+esc(reply)+'</div>';updateCog(d)}
+ catch(e){box.innerHTML+='<div class="msg bot" style=color:var(--red)>[error]</div>'}
+ box.scrollTop=box.scrollHeight;btn.disabled=false;
+}
+
+async function loadDebugger(){
+ const d=await api('/api/cog_state');
+ const cs=d.cog_state||{};
+ document.getElementById('debug-raw').textContent=JSON.stringify(d,null,2);
+ document.getElementById('debug-stats').innerHTML=
+ '<div class=stat-card><div class=label>active_intent</div><div class="value orange">'+esc(cs.active_intent||'—')+'</div></div>'+
+ '<div class=stat-card><div class=label>belief</div><div class="value green">'+(cs.accumulated_weight||0).toFixed(3)+'</div></div>'+
+ '<div class=stat-card><div class=label>recall_strength</div><div class="value teal">'+(cs.recall_strength||0).toFixed(3)+'</div></div>'+
+ '<div class=stat-card><div class=label>skills_loaded</div><div class=value>'+(d.skills_loaded||0)+'</div></div>';
+}
+
+function esc(s){if(!s)return'';const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function updateCog(d){
+ if(!d)return;const cs=d.cog_state||d;
+ if(cs.accumulated_weight!==undefined)document.getElementById('cog-belief').textContent=cs.accumulated_weight.toFixed(3);
+ if(cs.active_intent)document.getElementById('cog-intent').textContent=cs.active_intent;
+ if(cs.iteration!==undefined)document.getElementById('cog-iter').textContent=cs.iteration;
+ if(d.execution_count!==undefined)document.getElementById('cog-exec').textContent=d.execution_count;
+ if(d.memory_count!==undefined)document.getElementById('cog-memory').textContent=d.memory_count;
+}
+function refreshAll(){const a=document.querySelector('.panel.active');if(a)switchView(a.id.replace('panel-',''))}
+loadOverview();
+</script>
+</body>
+</html>

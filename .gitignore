@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+*.tmp
+*.py.new
+*.py.tmp
+
+# Node
+node_modules/
+.next/
+out/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Build artifacts (ui/ is built from frontend source, but we keep it for now)

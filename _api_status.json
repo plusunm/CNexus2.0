@@ -1,0 +1,27 @@
+﻿{
+    "booted":  true,
+    "active":  true,
+    "uptime":  696.19,
+    "skills_loaded":  19,
+    "execution_count":  1,
+    "memory_count":  5,
+    "current_iteration":  1,
+    "cog_state":  {
+                      "has_observation":  true,
+                      "has_context":  true,
+                      "last_strategy":  "SPEAK",
+                      "active_intent":  "converse",
+                      "accumulated_weight":  0.0,
+                      "recall_strength":  0.0,
+                      "total_observations":  1,
+                      "last_intent":  "converse",
+                      "consecutive_same_intent":  0
+                  },
+    "execution":  {
+                      "skill_count":  5,
+                      "executed":  5,
+                      "missing":  0,
+                      "mode":  "stub_execution"
+                  },
+    "engine_initialized":  true
+}
