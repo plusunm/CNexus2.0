@@ -1,94 +1,53 @@
 ---
 name: cnexus-cognitive-core
-description: CNexus 2.0 Personal Cognitive OS — local second brain with 6-step loop, spreading activation, REM sleep, wormhole links, code/vision projection, JSON persistence, and memory clear API.
+description: CNexus 2.0 — local personal second brain. 6-step cognitive loop, memory graph, JSON persistence, one-click clear. Python stdlib + static UI.
 ---
 
 # CNexus 2.0 — Personal Cognitive OS
 
-**GitHub:** https://github.com/plusunm/CNexus2.0
+**Repo:** https://github.com/plusunm/CNexus2.0
 
-CNexus 2.0 is a **local-first personal second brain**, not a generic RAG chatbot. It turns conversations, documents, codebases, and architecture diagrams into a **living cognitive network** that persists, self-organizes, and evolves on your machine.
+本地运行的个人第二大脑：把对话与文档变成可关联、可持久化、可清空的认知网络。
 
----
+## 能做什么
 
-## What You Get (Application Layer)
+| 维度 | 能力 |
+|------|------|
+| 记忆 | 结构化记忆单元、记忆流图、激活扩散、语义虫洞、REM 整理 |
+| 认知 | 六步闭环 OBSERVE→REFLECT、决策链回放、Ollama 本地优先 |
+| 持久化 | 自动写入 `data/cnexus_personal_state.json`，重启恢复 |
+| 清空 | UI 一键清空 + `POST /api/memory/clear` |
+| 多模态 | 代码 AST 投影、架构图视觉解析（可选 Ollama） |
 
-### 🧠 Memory Augmentation
-
-- **Structured memory units** — identity, goal, belief, episode tags instead of flat chat logs
-- **Memory flow graph** — Canvas 2D factor network with activation glow and wormhole dashed links
-- **Spreading activation** — after each turn, related nodes warm up; high-score fragments inject into the next reply
-- **Wormhole protocol** — semantic cosine bridges between nodes without explicit physical links (Ollama / cloud embedding fallback)
-- **REM deep sleep** — idle watchdog triggers synaptic pruning, LLM/heuristic compaction, causality re-anchor
-- **Multimodal projection** — `POST /api/ingest/code` (stdlib AST) and `POST /api/ingest/image` (Ollama vision)
-- **JSON persistence** — auto-save to `data/cnexus_personal_state.json`, restore on boot, graceful shutdown flush
-- **One-click clear** — UI button + `POST /api/memory/clear` wipes memory while keeping model registry
-
-### 🧭 Cognitive Companion
-
-- **6-step loop** — OBSERVE → COGNIZE → DECIDE → SPEAK → STORE → REFLECT on every `/api/converse`
-- **Trace replay** — `GET /v1/kernel/record/{trace_id}` for full decision chain
-- **Hybrid inference** — Ollama local first; optional DeepSeek / OpenAI when keys are set
-- **Live observability** — `GET /api/status` exposes emotion, goals, memory_items, activation scores, consolidation state
-
----
-
-## Quick Start
+## 快速启动
 
 ```bash
 git clone https://github.com/plusunm/CNexus2.0.git
 cd CNexus2.0
 python app_v2.py
-# open http://127.0.0.1:7864
 ```
 
-Windows: double-click `start_cnexus.bat`
+打开 http://127.0.0.1:7864（Windows 可双击 `start_cnexus.bat`）
 
-**Requirements:** Python 3.10+. Core gateway uses **stdlib only**. Ollama is optional for chat, vision, and embeddings.
+Python 3.10+，核心网关**无第三方依赖**。Ollama 可选。
 
----
+## 主要 API
 
-## Key API Endpoints
+| 端点 | 说明 |
+|------|------|
+| `POST /api/converse` | 认知对话 |
+| `GET /api/status` | 状态 + 记忆图谱 |
+| `POST /api/memory/clear` | 清空记忆 |
+| `POST /v1/memory/rem-sleep` | REM 深度整理 |
+| `POST /api/ingest/code` | 代码 AST 投影 |
+| `POST /api/ingest/image` | 架构图解析 |
 
-| Endpoint | Description |
-|----------|-------------|
-| `POST /api/converse` | Cognitive dialogue loop |
-| `GET /api/status` | System + memory graph + persistence |
-| `POST /api/memory/clear` | Wipe memory snapshot |
-| `POST /v1/memory/rem-sleep` | Trigger REM consolidation |
-| `POST /api/ingest/code` | AST code graph projection |
-| `POST /api/ingest/image` | Vision architecture projection |
-| `GET /v1/kernel/record/{trace_id}` | Execution trace replay |
-
----
-
-## Why CNexus 2.0?
-
-If you want a **sovereign, local second brain** that:
-
-- remembers *how* you think, not just *what* you said
-- visualizes memory as a living graph
-- compacts itself like sleep instead of bloating forever
-- runs without cloud lock-in
-
-…CNexus 2.0 is built for that.
-
----
-
-## Install via OpenClaw
+## 安装（OpenClaw）
 
 ```bash
 openclaw skills install @plusunm/cnexus-cognitive-core
 ```
 
-Then clone the GitHub repo above for the full runtime + UI.
+完整运行时请克隆上方 GitHub 仓库。
 
----
-
-## Links
-
-- **GitHub:** https://github.com/plusunm/CNexus2.0
-- **Runtime:** http://127.0.0.1:7864
-- **Stack:** Python stdlib gateway + Next.js static UI + Canvas 2D graph + Ollama (optional)
-
-**CNexus 2.0 — Sovereign memory. Living metabolism. Your thoughts, persisted.**
+**CNexus remembers what you think, and understands how you think.**
