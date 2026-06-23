@@ -1,111 +1,109 @@
 # 🧠 CNexus 2.0 — Personal Cognitive OS
 
-> CNexus turns your conversations into a living second brain — and your decisions into a traceable cognitive system.
-
-**CNexus 不是一个 AI 聊天工具，而是一个"会进化的个人第二大脑系统"。**  
-它只解决两件事：**记忆增强** × **认知辅助**。
-
----
-
-## 🧩 ① 认知记忆增强 — Memory Augmentation
-
-> 你的所有信息不会再"散掉"
-
-CNexus 把你的输入变成：
-
-- 📌 **结构化记忆** — 不再是文本，而是记忆单元
-- 📌 **可检索知识节点** — 关键事件、抽象概念、决策背景
-- 📌 **自动关联网络** — 信息和信息之间自动建立链接
-- 📌 **长期演化认知** — 系统持续学习你关注什么
-
-### 它替你做了什么？
-
-**🧠 自动记住"你说过什么"**  
-不只是保存聊天记录，而是提取关键事件、抽象概念、记录决策背景、保留上下文状态。
-
-**🔗 自动建立"知识关联"**  
-CNexus 会自动帮你回答：这件事和你之前说过的什么有关？这个决策和你过去的选择有什么模式？
-
-**🧭 自动构建"你的认知地图"**  
-你关注的主题结构、反复思考的领域、长期兴趣的演化路径 → 你的认知地图自动生长。
-
-**🔁 自动压缩与整理记忆**  
-类似大脑睡眠机制 —— 去重、提炼长期知识、删除噪声、强化重要概念。第二大脑不会爆炸，而是自我整理。
-
----
-
-## 🧠 ② 认知辅助决策 — Cognitive Assistant
-
-> 它不仅记住你，还"理解你怎么思考"
-
-**🧭 决策过程可回放**  
-每一次回答都有完整链路：输入 → 理解 → 判断 → 决策 → 输出 → 反思。  
-你可以看到：我为什么这样判断？有没有更优路径？AI 从"黑箱"变成"思维记录器"。
-
-**🧠 思维模式识别**  
-系统逐渐识别你的重复决策模式、思维偏差、信息盲区。它帮你"看见自己"，而不是"回答问题"。
-
-**⚡ 上下文持续增强**  
-传统 AI 每次对话清空大脑。CNexus 每一次对话累积认知状态。你问的问题越来越贴合你，系统越来越懂你。
-
-**🧩 长期目标辅助执行**  
-当前目标状态、历史决策路径、相关记忆节点 → 帮你拆解复杂目标、追踪执行路径、避免重复决策。
-
----
-
-## 🔥 一句话收敛
-
 > **CNexus remembers what you think, and understands how you think.**
 
-| 维度 | 能力 |
-|---|---|
-| 🧠 Personal Memory OS | 自动结构化信息、构建知识网络、防止碎片化 |
-| 🧭 Cognitive Companion | 记录决策过程、识别思维模式、增强上下文、辅助目标执行 |
+CNexus 2.0 不是又一个聊天机器人，而是一个**本地运行的个人第二大脑**：把对话、文档、代码和架构图，变成可检索、可关联、可演化的认知网络。
+
+本仓库为 **Personal Edition（纯净个人版）** — 单文件网关 `app_v2.py` + 静态 UI，零重型框架依赖，数据默认落在本地 JSON。
 
 ---
 
-## 🚀 快速启动
+## 应用能做什么？
 
-```bash
-pip install -r requirements.txt
-python app_v2.py
+### ① 认知记忆增强 — Memory Augmentation
+
+| 能力 | 你得到什么 |
+|------|-----------|
+| **结构化记忆** | 每次对话 / 上传 / 捕获 → 记忆单元（身份 / 目标 / 信念 / 经历） |
+| **关联网络** | 记忆流图实时展示节点与边；激活扩散让相关记忆自动「升温」 |
+| **语义虫洞** | 未显式链接的概念，通过本地向量余弦相似度建立跨域共振 |
+| **REM 深度睡眠** | 空闲时自动剪枝噪声、压缩碎片、提炼长期语义节点 |
+| **多模态摄入** | Python AST 代码投影 + Ollama 视觉架构图解析 |
+| **持久化** | 自动写入 `data/cnexus_personal_state.json`，重启恢复 |
+| **一键清空** | UI 侧栏 / 记忆面板 → 清空记忆与快照（保留模型配置） |
+
+### ② 认知辅助决策 — Cognitive Companion
+
+| 能力 | 你得到什么 |
+|------|-----------|
+| **六步认知闭环** | OBSERVE → COGNIZE → DECIDE → SPEAK → STORE → REFLECT，每轮可追溯 |
+| **阈值即时回忆** | 对话前自动注入高激活记忆片段，上下文越用越准 |
+| **决策回放** | `/v1/kernel/record/{trace_id}` 查看完整执行链 |
+| **混合推理** | 本地 Ollama 优先，可选 DeepSeek / OpenAI 云端回退 |
+| **可观测** | `/api/status` 返回情绪、目标、记忆图谱、激活分数、虫洞链接 |
+
+---
+
+## 快速启动
+
+**Windows（推荐）**
+
+```bat
+start_cnexus.bat
 ```
 
-默认访问 `http://localhost:7865`
+**手动**
+
+```bash
+python app_v2.py
+# 浏览器打开 http://127.0.0.1:7864
+```
+
+**环境变量（可选）**
+
+| 变量 | 说明 | 默认 |
+|------|------|------|
+| `OLLAMA_HOST` | Ollama 地址 | `127.0.0.1:11434` |
+| `CNEXUS_DATA_DIR` | 持久化目录 | `./data` |
+| `CNEXUS_PERSIST_FILE` | 快照文件路径 | `./data/cnexus_personal_state.json` |
+| `CNEXUS_REM_IDLE_SECONDS` | REM 触发空闲秒数 | `1800` |
+
+> Python 3.10+，核心网关**无第三方 Python 依赖**。Ollama 为可选本地 LLM / 视觉 / Embedding 后端。
 
 ---
 
-## 📡 API
+## 主要 API
 
 | 端点 | 说明 |
-|---|---|
-| `POST /api/converse` | 认知循环对话 |
-| `GET /api/status` | 系统状态 + 记忆图谱 |
+|------|------|
+| `GET /` | 静态前端（工作台 / 记忆流图 / 模型配置） |
+| `GET /api/status` | 系统状态 + 记忆图谱 + 持久化信息 |
+| `POST /api/converse` | 六步认知对话 `{ "text": "..." }` |
+| `POST /api/memory/clear` | 一键清空记忆 `{ "keep_models": true }` |
+| `POST /v1/memory/capture` | 手动写入记忆 |
+| `POST /v1/memory/rem-sleep` | 触发 REM 深度睡眠整理 |
+| `POST /api/ingest/code` | AST 代码空间投影 |
+| `POST /api/ingest/image` | 架构图视觉投影 |
 | `GET /v1/kernel/record/{trace_id}` | 执行追踪回放 |
 
 ---
 
-## 🧱 项目结构
+## 项目结构
 
 ```
 CNexus2.0/
-├── app_v2.py          # HTTP Server (zero framework deps)
-├── src/kernel/        # 6-step cognitive pipeline
-│   ├── observe_reducer.py
-│   ├── cognize_reducer.py
-│   ├── decide_reducer.py
-│   ├── speak_reducer.py
-│   ├── store_reducer.py
-│   ├── reflect_reducer.py
-│   ├── block_store.py
-│   └── state_snapshot.py
-├── ui/                # Next.js static export (personal edition)
-├── core_essence/      # Architecture design docs
-└── specs/             # Full specification suite
+├── app_v2.py              # 统一 HTTP 网关（7864）
+├── start_cnexus.bat       # Windows 一键启动
+├── src/kernel/            # 六步认知 reducer + BlockStore
+├── ui/                    # Next.js 静态导出（个人版前端）
+├── clawhub/               # ClawHub 技能发布包
+│   └── cnexus-cognitive-core/
+├── core_essence/          # 架构设计文档
+└── specs/                 # 规格说明
 ```
 
 ---
 
-## 📜 License
+## ClawHub
 
-MIT License — free to use, modify, and extend.
+OpenClaw 技能页：[cnexus-cognitive-core](https://clawhub.ai/plusunm/skills/cnexus-cognitive-core)
+
+```bash
+openclaw skills install @plusunm/cnexus-cognitive-core
+```
+
+---
+
+## License
+
+MIT — free to use, modify, and extend.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """CNexus 2.0 Pure Gateway — L0-spec HTTP server, zero legacy import conflicts."""
 
-import os, sys, json, math, time, traceback, cgi, shutil, subprocess, threading, ast, base64, re
+import os, sys, json, math, time, traceback, cgi, shutil, subprocess, threading, ast, base64, re, tempfile
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from urllib import request as urlrequest
@@ -40,6 +40,7 @@ store_fn       = _sto_mod.store_fn
 reflect_fn     = _rfl_mod.reflect_fn
 BlockStore     = _sto_mod.BlockStore
 StateSnapshot  = _snp_mod.StateSnapshot
+EmotionSnapshot = _snp_mod.EmotionSnapshot
 
 # ── Cognitive Engine State ──────────────────────────────────────────────
 _engine_state = {
@@ -107,6 +108,16 @@ _REM_WATCHDOG_INTERVAL = int(os.environ.get("CNEXUS_REM_WATCHDOG_INTERVAL", "60"
 _REM_MAX_FACTS = 5
 _rem_lock = threading.Lock()
 
+# ── Local JSON persistence (personal memory snapshot) ──
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_PERSIST_DIR = os.environ.get("CNEXUS_DATA_DIR", os.path.join(_BASE_DIR, "data"))
+_PERSIST_FILE = os.environ.get("CNEXUS_PERSIST_FILE", os.path.join(_PERSIST_DIR, "cnexus_personal_state.json"))
+_PERSIST_VERSION = "2.0-personal-persist-v1"
+_PERSIST_DEBOUNCE_SEC = float(os.environ.get("CNEXUS_PERSIST_DEBOUNCE", "1.5"))
+_persist_lock = threading.Lock()
+_persist_timer = None
+_persist_meta = {"saved_at": None, "loaded_at": None}
+
 
 def _default_model_registry():
     return {
@@ -158,6 +169,248 @@ def _default_model_registry():
 
 
 _engine_state["model_registry"] = _default_model_registry()
+
+
+def _persist_file_path():
+    os.makedirs(_PERSIST_DIR, exist_ok=True)
+    return _PERSIST_FILE
+
+
+def _state_snapshot_to_dict(st):
+    if not isinstance(st, StateSnapshot):
+        return {}
+    return {
+        "emotion": {
+            "val": st.emotion.val,
+            "arousal": st.emotion.arousal,
+            "dominance": st.emotion.dominance,
+        },
+        "relationship": dict(st.relationship or {}),
+        "goal": dict(st.goal or {}),
+        "attention": dict(st.attention or {}),
+        "meta": dict(st.meta or {}),
+    }
+
+
+def _state_snapshot_from_dict(data):
+    data = data or {}
+    em = data.get("emotion") or {}
+    return StateSnapshot(
+        emotion=EmotionSnapshot(
+            val=float(em.get("val", 0.0)),
+            arousal=float(em.get("arousal", 0.5)),
+            dominance=float(em.get("dominance", 0.5)),
+        ),
+        relationship=dict(data.get("relationship") or {}),
+        goal=dict(data.get("goal") or {}),
+        attention=dict(data.get("attention") or {}),
+        meta=dict(data.get("meta") or {}),
+    )
+
+
+def _to_jsonable(obj, depth=0):
+    if depth > 10:
+        return str(obj)
+    if obj is None or isinstance(obj, (bool, int, float, str)):
+        return obj
+    if isinstance(obj, StateSnapshot):
+        return _state_snapshot_to_dict(obj)
+    if isinstance(obj, EmotionSnapshot):
+        return {
+            "val": obj.val,
+            "arousal": obj.arousal,
+            "dominance": obj.dominance,
+        }
+    if isinstance(obj, dict):
+        return {str(k): _to_jsonable(v, depth + 1) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, set)):
+        return [_to_jsonable(v, depth + 1) for v in obj]
+    if hasattr(obj, "__dict__") and not isinstance(obj, type):
+        return _to_jsonable(vars(obj), depth + 1)
+    return str(obj)
+
+
+def _serialize_engine_state():
+    es = _engine_state
+    return {
+        "persist_version": _PERSIST_VERSION,
+        "saved_at": time.time(),
+        "current_iteration": int(es.get("current_iteration", 0)),
+        "started_at": float(es.get("started_at", time.time())),
+        "state": _state_snapshot_to_dict(es["state"]),
+        "memory_blocks": _to_jsonable(es["memory_store"].blocks),
+        "trace": _to_jsonable(es.get("trace", [])[-120:]),
+        "activation": _to_jsonable(es.get("activation", {})),
+        "projection": _to_jsonable(es.get("projection", {"nodes": {}, "links": []})),
+        "consolidation": _to_jsonable(es.get("consolidation", {})),
+        "gtbs_events": _to_jsonable(es.get("gtbs_events", [])[-500:]),
+        "runtime_logs": _to_jsonable(es.get("runtime_logs", [])[-200:]),
+        "token_traces": _to_jsonable(es.get("token_traces", [])[-20:]),
+        "model_registry": _to_jsonable(es.get("model_registry", {})),
+    }
+
+
+def _apply_persisted_state(payload):
+    if not isinstance(payload, dict) or payload.get("persist_version") != _PERSIST_VERSION:
+        return False
+    es = _engine_state
+    es["state"] = _state_snapshot_from_dict(payload.get("state"))
+    es["current_iteration"] = int(payload.get("current_iteration", 0))
+    es["started_at"] = float(payload.get("started_at", time.time()))
+    blocks = payload.get("memory_blocks") or []
+    es["memory_store"].blocks = list(blocks) if isinstance(blocks, list) else []
+    es["trace"] = list(payload.get("trace") or [])
+    act = payload.get("activation") or {}
+    es["activation"] = {
+        "scores": dict(act.get("scores") or {}),
+        "wormhole_links": list(act.get("wormhole_links") or []),
+    }
+    proj = payload.get("projection") or {}
+    es["projection"] = {
+        "nodes": dict(proj.get("nodes") or {}),
+        "links": list(proj.get("links") or []),
+    }
+    cons = dict(es.get("consolidation") or {})
+    cons.update(payload.get("consolidation") or {})
+    cons["rem_running"] = False
+    es["consolidation"] = cons
+    saved_reg = payload.get("model_registry") or {}
+    merged = _default_model_registry()
+    if isinstance(saved_reg, dict):
+        merged.update(saved_reg)
+    es["model_registry"] = merged
+    es["gtbs_events"] = list(payload.get("gtbs_events") or [])
+    es["runtime_logs"] = list(payload.get("runtime_logs") or [])
+    es["token_traces"] = list(payload.get("token_traces") or [])
+    return True
+
+
+def _atomic_write_json(path, payload):
+    directory = os.path.dirname(os.path.abspath(path)) or "."
+    os.makedirs(directory, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(prefix=".cnexus-", suffix=".json", dir=directory)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
+def _persist_engine_state():
+    with _persist_lock:
+        try:
+            payload = _serialize_engine_state()
+            path = _persist_file_path()
+            _atomic_write_json(path, payload)
+            _persist_meta["saved_at"] = payload["saved_at"]
+            return True
+        except Exception as exc:
+            _append_runtime_log(f"持久化失败 · {exc}", category="control_plane", level="error")
+            return False
+
+
+def _schedule_persist():
+    global _persist_timer
+
+    def _fire():
+        _persist_engine_state()
+
+    with _persist_lock:
+        if _persist_timer is not None:
+            _persist_timer.cancel()
+        _persist_timer = threading.Timer(_PERSIST_DEBOUNCE_SEC, _fire)
+        _persist_timer.daemon = True
+        _persist_timer.start()
+
+
+def _load_engine_state_on_boot():
+    path = _persist_file_path()
+    if not os.path.isfile(path):
+        return False
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        if not _apply_persisted_state(payload):
+            return False
+        _persist_meta["loaded_at"] = time.time()
+        _persist_meta["saved_at"] = payload.get("saved_at")
+        _append_runtime_log(
+            (
+                f"记忆快照恢复 · blocks={len(_engine_state['memory_store'].blocks)} "
+                f"trace={len(_engine_state.get('trace', []))} "
+                f"iteration={_engine_state.get('current_iteration', 0)}"
+            ),
+            category="control_plane",
+        )
+        return True
+    except Exception as exc:
+        _append_runtime_log(f"快照加载失败 · {exc}", category="control_plane", level="warn")
+        return False
+
+
+def _persistence_status():
+    path = _persist_file_path()
+    return {
+        "enabled": True,
+        "version": _PERSIST_VERSION,
+        "path": path,
+        "exists": os.path.isfile(path),
+        "saved_at": _persist_meta.get("saved_at"),
+        "loaded_at": _persist_meta.get("loaded_at"),
+        "memory_blocks": len(_engine_state["memory_store"].blocks),
+        "trace_count": len(_engine_state.get("trace", [])),
+        "projection_nodes": len(_engine_state.get("projection", {}).get("nodes", {})),
+    }
+
+
+def _reset_engine_memory(model_registry=None):
+    es = _engine_state
+    es["state"] = StateSnapshot()
+    es["memory_store"] = BlockStore()
+    es["trace"] = []
+    es["gtbs_events"] = []
+    es["runtime_logs"] = []
+    es["token_traces"] = []
+    es["current_iteration"] = 0
+    es["activation"] = {"scores": {}, "wormhole_links": []}
+    es["projection"] = {"nodes": {}, "links": []}
+    now = time.time()
+    es["consolidation"] = {
+        "last_activity_at": now,
+        "last_shallow_at": 0,
+        "last_rem_at": 0,
+        "rem_running": False,
+        "total_pruned": 0,
+        "total_facts": 0,
+        "last_rem_report": None,
+    }
+    if model_registry is not None:
+        es["model_registry"] = model_registry
+
+
+def api_memory_clear(keep_models=True):
+    registry = dict(_engine_state.get("model_registry", {})) if keep_models else _default_model_registry()
+    _reset_engine_memory(registry)
+    path = _persist_file_path()
+    try:
+        if os.path.isfile(path):
+            os.remove(path)
+    except OSError as exc:
+        _append_runtime_log(f"删除快照文件失败 · {exc}", category="control_plane", level="warn")
+    _persist_engine_state()
+    _append_runtime_log("记忆已手动清空", category="control_plane")
+    return {
+        "ok": True,
+        "cleared": True,
+        "keep_models": bool(keep_models),
+        "persistence": _persistence_status(),
+    }
+
 
 def _iso_ts():
     return time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
@@ -456,6 +709,7 @@ def _run_6step(input_text: str, model_id=None) -> dict:
             model_id=model_row.get("id") if model_row else None,
             provider=(model_row or {}).get("provider"),
         )
+    _schedule_persist()
     return {
         "reply": reply,
         "emotion": {"valence": st.emotion.val, "arousal": st.emotion.arousal, "dominance": st.emotion.dominance},
@@ -528,6 +782,7 @@ def api_status():
         "consolidation": _consolidation_status(),
         "wormhole_links": _wormhole_links_snapshot(),
         "projection_links": _projection_links_snapshot(),
+        "persistence": _persistence_status(),
     }
 
 _prepare_cache: dict = {}
@@ -1149,6 +1404,7 @@ def _activation_post_turn(user_text, reply, trace_id):
         category="cognition",
         trace_id=trace_id,
     )
+    _schedule_persist()
 
 
 def _schedule_activation_post_turn(user_text, reply, trace_id):
@@ -1562,6 +1818,7 @@ def _run_rem_deep_sleep(force=False):
         _consolidation_state()["rem_running"] = False
 
     report["status"] = _consolidation_status()
+    _schedule_persist()
     return report
 
 
@@ -1827,6 +2084,7 @@ def _register_projection(nodes, links, cluster, source_kind="code"):
         f"{'代码' if source_kind == 'code' else '视觉'}投影 · nodes={len(registered_ids)} links={len(links)}",
         category="capture",
     )
+    _schedule_persist()
     return registered_ids
 
 
@@ -1844,6 +2102,7 @@ def _schedule_projection_wormhole(node_ids):
                 scores[nid] = _ACTIVATION_MAX_SCORE
             adj = _build_activation_adjacency(specs)
             _spread_wormhole_resonance(set(node_ids), specs, adj, scores)
+        _schedule_persist()
 
     threading.Thread(target=_run, daemon=True, name="cnexus-projection-wormhole").start()
 
@@ -3109,7 +3368,20 @@ class V2Handler(BaseHTTPRequestHandler):
                         "importance": 0.45,
                         "timestamp": time.time(),
                     })
+            _schedule_persist()
             return self._json({"memory_id": mem_id, "status": "stored", "ok": True})
+
+        if path in ("/api/memory/clear", "/v1/memory/clear"):
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length) if length > 0 else b"{}"
+            try:
+                data = json.loads(body) if body else {}
+            except Exception:
+                data = {}
+            keep_models = data.get("keep_models", True)
+            if isinstance(keep_models, str):
+                keep_models = keep_models.lower() not in ("0", "false", "no")
+            return self._json(api_memory_clear(keep_models=bool(keep_models)))
 
         if path == "/v1/memory/rem-sleep":
             length = int(self.headers.get("Content-Length", 0))
@@ -3203,6 +3475,8 @@ class V2Handler(BaseHTTPRequestHandler):
 
 def main():
     port = 7864
+    loaded = _load_engine_state_on_boot()
+    persist_path = _persist_file_path()
     server = HTTPServer(("127.0.0.1", port), V2Handler)
     server.allow_reuse_address = True
     print(f" CNexus 2.0 Unified Server live on http://127.0.0.1:{port}")
@@ -3213,11 +3487,17 @@ def main():
     print(f"   POST /v1/memory/rem-sleep — REM deep sleep consolidation")
     print(f"   POST /api/ingest/image  — vision architecture projection")
     print(f"   POST /api/ingest/code   — AST code space projection")
+    print(f"   POST /api/memory/clear  — wipe memory + delete snapshot (keep_models optional)")
+    print(f"   JSON persist: {persist_path} ({'restored' if loaded else 'fresh start'})")
     _start_rem_watchdog()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nShutting down.")
+        with _persist_lock:
+            if _persist_timer is not None:
+                _persist_timer.cancel()
+        _persist_engine_state()
         server.server_close()
 
 if __name__ == "__main__":

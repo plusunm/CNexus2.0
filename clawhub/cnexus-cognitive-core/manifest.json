@@ -1,0 +1,12 @@
+{
+  "id": "cnexus-cognitive-core",
+  "name": "CNexus 2.0 Personal Cognitive OS",
+  "version": "2.1.0",
+  "description": "Local second brain with 6-step cognitive loop, spreading activation, REM sleep metabolism, wormhole semantic bridges, multimodal code/vision projection, JSON persistence, and one-click memory clear.",
+  "author": "plusunm",
+  "homepage": "https://github.com/plusunm/CNexus2.0",
+  "repository": "https://github.com/plusunm/CNexus2.0",
+  "license": "MIT",
+  "type": "application",
+  "tags": ["cognitive", "memory", "local-first", "ollama", "second-brain"]
+}

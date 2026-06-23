@@ -1,0 +1,6 @@
+# CNexus 2.0 Personal Edition — zero third-party Python deps for the core gateway.
+# app_v2.py runs on Python 3.10+ stdlib only (http.server, ast, json, threading, …).
+#
+# Optional (not required):
+#   Ollama — local chat / vision / embeddings
+#   DeepSeek / OpenAI API keys — cloud LLM or embedding fallback
