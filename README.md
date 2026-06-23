@@ -87,9 +87,8 @@ CNexus2.0/
 ├── src/kernel/            # 六步认知 reducer + BlockStore
 ├── ui/                    # Next.js 静态导出（个人版前端）
 ├── clawhub/               # ClawHub 技能发布包
-│   └── cnexus-cognitive-core/
-├── core_essence/          # 架构设计文档
-└── specs/                 # 规格说明
+├── tests/                 # 内核合规测试
+└── specs/v2_final/        # 架构与运行时规格文档
 ```
 
 ---

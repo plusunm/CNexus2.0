@@ -36,3 +36,11 @@ current_js.txt
 cnexus_next_css.txt
 new_float.html
 new_shell.html
+memory/
+
+# Legacy / dev-only (excluded from personal edition)
+app_ui.py
+app_ui_backup.py
+universal_gateway.py
+config/
+tools/
