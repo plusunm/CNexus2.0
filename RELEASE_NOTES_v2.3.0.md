@@ -1,9 +1,10 @@
 # CNexus 2.0 Personal Edition — v2.3.0 发布说明
 
-> 面向第一次使用的小白用户：这版能做什么、怎么开始、和上一版比改了什么。
+> 面向第一次使用的小白用户：这版能做什么、怎么安装、和上一版比改了什么。
 
-**发布日期：** 2026-06-22  
-**下载：** [GitHub Releases — v2.3.0](https://github.com/plusunm/CNexus2.0/releases/tag/v2.3.0)
+**发布日期：** 2026-06-25  
+**仓库：** [github.com/plusunm/CNexus2.0](https://github.com/plusunm/CNexus2.0)  
+**本版标签：** [v2.3.0](https://github.com/plusunm/CNexus2.0/releases/tag/v2.3.0)
 
 ---
 
@@ -13,14 +14,58 @@
 
 ---
 
+## 如何获取本版
+
+**方式一：下载压缩包（最简单）**
+
+1. 打开 [Releases 页面](https://github.com/plusunm/CNexus2.0/releases/tag/v2.3.0)  
+2. 点击 **Source code (zip)** 下载并解压  
+3. 进入解压后的文件夹，双击 `start_cnexus.bat`
+
+**方式二：Git 克隆**
+
+```bash
+git clone https://github.com/plusunm/CNexus2.0.git
+cd CNexus2.0
+git checkout v2.3.0
+```
+
+Windows 用户克隆后同样双击 `start_cnexus.bat` 即可。
+
+**环境要求**
+
+| 项目 | 说明 |
+|------|------|
+| 操作系统 | Windows 10/11（推荐）；也可手动 `python app_v2.py` 跑在其他系统 |
+| Python | **3.10 或以上**，需加入 PATH |
+| 浏览器 | Chrome / Edge 等现代浏览器 |
+| 可选 | [Ollama](https://ollama.com) 本地模型；或 DeepSeek / OpenAI API Key |
+
+---
+
 ## 3 分钟上手
 
-1. **安装 Python 3.10+**（若还没有）  
+1. **确认已安装 Python 3.10+**（命令行输入 `python --version` 能看到版本号）  
 2. **双击** 项目里的 `start_cnexus.bat`  
-3. 浏览器会自动打开 **http://127.0.0.1:7864**  
-4. 左侧选 **「对话」** 开始聊天；选 **「上传记忆」** 导入 PDF / Word / 文本  
+   - 脚本会自动释放 7864 端口、后台启动网关、做健康检查  
+   - 成功后浏览器会打开 **http://127.0.0.1:7864**  
+3. 左侧选 **「对话」** 开始聊天  
+4. 选 **「上传记忆」** 导入 PDF / Word / Markdown / 文本  
 
-想更聪明地回答？到 **「模型」** 页填入 DeepSeek 或 OpenAI 的 API Key，或在本机安装 [Ollama](https://ollama.com) 跑本地模型。
+想更聪明地回答？到 **「模型」** 页填入 DeepSeek 或 OpenAI 的 API Key，或在本机安装 Ollama 跑本地模型。
+
+**退出程序：** 双击 `stop_cnexus.bat`（网关会在后台运行，关浏览器窗口不会停止服务）。
+
+---
+
+## 本版更新一览
+
+| 类别 | 内容 |
+|------|------|
+| 修复 | 聊天不再复读用户输入；上传卡顿；聊天区滚动把整页顶出视口 |
+| 新功能 | 对话时可选择 **本机 / 组群 / 全网** 记忆范围 |
+| 体验 | 记忆范围与对话偏好分开展示；批量上传带进度 |
+| 开源 | 完整 `frontend/` 前端源码随仓库发布 |
 
 ---
 
