@@ -1,6 +1,14 @@
-# CNexus 2.0 Personal Edition — zero third-party Python deps for the core gateway.
-# app_v2.py runs on Python 3.10+ stdlib only (http.server, ast, json, threading, …).
+# CNexus 2.0 Personal Edition
 #
-# Optional (not required):
-#   Ollama — local chat / vision / embeddings
+# Core gateway (app_v2.py): Python 3.10+ stdlib only.
+#
+# Identity layer (Ed25519 / DID anchor):
+pynacl>=1.5.0
+#
+# Optional runtime:
+#   psutil — Mission Control CPU/RAM metrics (dashboard)
+# Optional CLIP image embedding (direct image vectors, not vision-desc):
+#   pip install pillow numpy
+#   pip install onnxruntime  # + set CNEXUS_CLIP_IMAGE_ONNX / CNEXUS_CLIP_TEXT_ONNX
+#
 #   DeepSeek / OpenAI API keys — cloud LLM or embedding fallback

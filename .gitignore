@@ -9,15 +9,21 @@ build/
 *.py.new
 *.py.tmp
 
-# Node (frontend source builds elsewhere)
+# Node (frontend / Tauri desktop)
 node_modules/
 .next/
 out/
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/src-tauri/target/
+frontend/src-tauri/cnexus-runtime-x86_64-pc-windows-msvc.exe
 
 # Personal runtime data — never commit user memory snapshots
 data/
 *.log
 gateway.log
+data/peers.json
 
 # OS
 Thumbs.db

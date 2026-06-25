@@ -1,0 +1,14 @@
+D:\类脑记忆\CNexus2.0\frontend\src-tauri\cnexus-runtime-sidecar\target\release\deps\serde-73a663e1bedd3c94.d: C:\Users\刘\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\lib.rs C:\Users\刘\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\integer128.rs C:\Users\刘\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\mod.rs C:\Users\刘\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\de.rs C:\Users\刘\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\ser.rs D:\类脑记忆\CNexus2.0\frontend\src-tauri\cnexus-runtime-sidecar\target\release\build\serde-dad246f629896f08\out/private.rs
+
+D:\类脑记忆\CNexus2.0\frontend\src-tauri\cnexus-runtime-sidecar\target\release\deps\libserde-73a663e1bedd3c94.rlib: C:\Users\刘\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\lib.rs C:\Users\刘\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\integer128.rs C:\Users\刘\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\mod.rs C:\Users\刘\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\de.rs C:\Users\刘\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\ser.rs D:\类脑记忆\CNexus2.0\frontend\src-tauri\cnexus-runtime-sidecar\target\release\build\serde-dad246f629896f08\out/private.rs
+
+D:\类脑记忆\CNexus2.0\frontend\src-tauri\cnexus-runtime-sidecar\target\release\deps\libserde-73a663e1bedd3c94.rmeta: C:\Users\刘\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\lib.rs C:\Users\刘\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\integer128.rs C:\Users\刘\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\mod.rs C:\Users\刘\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\de.rs C:\Users\刘\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\ser.rs D:\类脑记忆\CNexus2.0\frontend\src-tauri\cnexus-runtime-sidecar\target\release\build\serde-dad246f629896f08\out/private.rs
+
+C:\Users\刘\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\lib.rs:
+C:\Users\刘\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\integer128.rs:
+C:\Users\刘\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\mod.rs:
+C:\Users\刘\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\de.rs:
+C:\Users\刘\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\ser.rs:
+D:\类脑记忆\CNexus2.0\frontend\src-tauri\cnexus-runtime-sidecar\target\release\build\serde-dad246f629896f08\out/private.rs:
+
+# env-dep:OUT_DIR=D:\\类脑记忆\\CNexus2.0\\frontend\\src-tauri\\cnexus-runtime-sidecar\\target\\release\\build\\serde-dad246f629896f08\\out

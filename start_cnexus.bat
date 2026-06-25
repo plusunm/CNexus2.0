@@ -1,95 +1,97 @@
 @echo off
-chcp 65001 >nul 2>&1
-pushd "%~dp0"
+setlocal EnableExtensions EnableDelayedExpansion
+
+rem CNexus 2.0 launcher (ASCII-only for cmd.exe compatibility)
+cd /d "%~dp0"
 if errorlevel 1 (
-    echo ❌ 无法进入项目目录
+    echo [ERROR] Cannot enter project directory.
     pause
     exit /b 1
 )
 
-title CNexus 2.0 - 统一网关
+title CNexus 2.0 Gateway
 
-echo ════════════════════════════════════════
-echo   🚀 CNexus 2.0 - 拉起后端 打开前端
-echo ════════════════════════════════════════
+echo ========================================
+echo   CNexus 2.0 - start backend + browser
+echo ========================================
 
-rem ── 1. 检查端口，有残留则杀 ──
-echo [1/3] 检查端口 7864...
-netstat -ano | findstr ":7864.*LISTENING" >nul 2>&1
-if errorlevel 0 (
-    for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":7864.*LISTENING"') do (
-        taskkill /f /pid %%a >nul 2>&1
-    )
-    timeout /t 1 /nobreak >nul
+where python >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] python not found. Install Python 3.10+ and add to PATH.
+    pause
+    exit /b 1
 )
 
-rem ── 2. 启动后端（独立窗口）──
-echo [2/3] 启动 Unified Gateway...
-start "CNexus 2.0 - Gateway" /min python -B -u app_v2.py
+echo [1/4] Check port 7864...
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":7864" ^| findstr "LISTENING"') do (
+    taskkill /f /pid %%a >nul 2>&1
+)
+ping -n 2 127.0.0.1 >nul
 
-rem ── 3. 等待就绪 ──
-echo [3/3] 等待服务就绪...
-setlocal enabledelayedexpansion
+echo [2/4] Start gateway (hidden)...
+if exist gateway.log del /f /q gateway.log >nul 2>&1
+wscript.exe //nologo "%~dp0run_gateway_hidden.vbs"
+
+echo [3/4] Wait for port...
 set WAIT_MAX=30
 set WAIT_COUNT=0
 
 :WAIT_LOOP
-timeout /t 1 /nobreak >nul
+ping -n 2 127.0.0.1 >nul
 set /a WAIT_COUNT+=1
-netstat -ano | findstr ":7864.*LISTENING" >nul 2>&1
-if !errorlevel! neq 0 (
+netstat -ano | findstr ":7864" | findstr "LISTENING" >nul 2>&1
+if errorlevel 1 (
     if !WAIT_COUNT! lss !WAIT_MAX! goto WAIT_LOOP
     echo.
-    echo ❌ 服务启动超时（超过%WAIT_MAX%秒）
-    echo   请检查 gateway.log 或手动运行 python app_v2.py 看报错
+    echo [ERROR] Gateway did not start within !WAIT_MAX! seconds.
+    if exist gateway.log (
+        echo.
+        echo --- gateway.log tail ---
+        powershell -NoProfile -Command "Get-Content -LiteralPath '%CD%\gateway.log' -Tail 20 -ErrorAction SilentlyContinue"
+    )
+    echo.
+    echo Try manually: cd /d "%~dp0" ^&^& python app_v2.py
     pause
     exit /b 1
 )
 
-rem ── 4. 成功：打开浏览器 ──
-echo.
-echo ════════════════════════════════════════
-echo   ✅ 启动成功！
-echo.
-echo   后端:  http://127.0.0.1:7864
-echo   状态:  http://127.0.0.1:7864/api/status
-echo.
-echo   ⚡ 后端运行在独立窗口，关闭即可停止服务
-echo ════════════════════════════════════════
-
-start http://127.0.0.1:7864
-
-rem ── 5. 保持窗口，直到用户手动关闭或后端退出 ──
-echo.
-echo   按 0 停止服务并退出
-echo   按 1 重新打开前端
-echo   按其他键退出（服务后台继续运行）
-echo.
-
-:MONITOR_LOOP
-netstat -ano | findstr ":7864.*LISTENING" >nul 2>&1
-if errorlevel 1 (
-    echo.
-    echo ⚠️  后端服务已停止，按任意键退出
-    pause >nul 2>&1
-    exit /b 0
-)
-
-choice /c 01 /n /t 5 /d 2 >nul 2>&1
-if errorlevel 2 goto MONITOR_LOOP
-if errorlevel 1 (
-    start http://127.0.0.1:7864
-    goto MONITOR_LOOP
-)
-if errorlevel 0 (
-    echo.
-    echo 🔴 正在停止服务...
-    for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":7864.*LISTENING"') do (
-        taskkill /f /pid %%a >nul 2>&1
+echo [4/4] Health check...
+set HEALTH_OK=0
+for /l %%i in (1,1,10) do (
+    powershell -NoProfile -Command "try { $r = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:7864/api/status' -TimeoutSec 3; if ($r.StatusCode -eq 200) { exit 0 } else { exit 1 } } catch { exit 1 }" >nul 2>&1
+    if not errorlevel 1 (
+        set HEALTH_OK=1
+        goto HEALTH_DONE
     )
-    echo ✅ 服务已停止
-    timeout /t 1 /nobreak >nul
-    exit /b 0
+    ping -n 2 127.0.0.1 >nul
+)
+:HEALTH_DONE
+if !HEALTH_OK! equ 0 (
+    echo.
+    echo [ERROR] Port is open but /api/status failed.
+    if exist gateway.log (
+        echo.
+        echo --- gateway.log tail ---
+        powershell -NoProfile -Command "Get-Content -LiteralPath '%CD%\gateway.log' -Tail 20 -ErrorAction SilentlyContinue"
+    )
+    pause
+    exit /b 1
 )
 
-goto MONITOR_LOOP
+echo.
+echo ========================================
+echo   OK - CNexus is running
+echo   UI:     http://127.0.0.1:7864
+echo   Status: http://127.0.0.1:7864/api/status
+echo   Log:    %CD%\gateway.log
+echo   Stop:   run stop_cnexus.bat
+echo ========================================
+
+start "" http://127.0.0.1:7864
+
+echo.
+echo Gateway runs hidden in the background.
+echo To stop: run stop_cnexus.bat
+echo.
+pause
+exit /b 0

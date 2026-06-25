@@ -1,0 +1,648 @@
+import { create } from "zustand";
+import { DEMO_MIND_OVERVIEW } from "@/lib/demoMindOverview";
+import type { MindOverview } from "@/lib/runtimeTypes";
+import { ModelProfile, RuntimeLogEntry, RuntimeState, brainApi, cnexusProductApi } from "@/lib/api";
+import { parseL3Status, type L3SchedulerStatus } from "@/lib/systemConvergence";
+import { assertMindOverviewContract } from "./MindOverviewContract";
+import { resolveOverviewForSource } from "./selectOverview";
+import type { EffectiveConnectionMode } from "./connectionMode";
+import {
+  clearRuntimeReachability,
+  publishRuntimeReachability,
+} from "./runtimeReachabilityBus";
+import {
+  getBootSessionId,
+  markRuntimeReachabilityBooting,
+  markRuntimeReachabilityFailed,
+  markRuntimeReachabilityReady,
+  resetRuntimeReachabilityStore,
+  syncRuntimeReachabilityFromMindStore,
+} from "./runtimeReachabilityStore";
+import {
+  EMPTY_CAPABILITIES,
+  parseCapabilityPayload,
+  type RuntimeCapabilities,
+  type SystemCapabilitySnapshot,
+} from "@/lib/systemCapability";
+import { reportClientPhaseFlip, reportRuntimeConflict } from "@/lib/runtimeConflictMonitor";
+
+type MindStoreState = {
+  models: ModelProfile[];
+  selectedModelId: string;
+  runtimeState: RuntimeState | null;
+  mindOverview: MindOverview | null;
+  runtimeLogs: RuntimeLogEntry[];
+  runtimeReachable: boolean;
+  /** Full readiness (BOOT_4 + cognitive) — upload / authoritative gate. */
+  runtimeReady: boolean;
+  /** Layer-1 operational readiness — chat / basic API without cognitive gate. */
+  runtimeOperationalReady: boolean;
+  runtimeCapabilities: RuntimeCapabilities;
+  runtimeCognitiveStatus: string | null;
+  runtimeBootPhase: string | null;
+  runtimeBootReason: string | null;
+  runtimeBootProgress: number | null;
+  runtimeL3Status: L3SchedulerStatus | null;
+  runtimeRenderMode: string | null;
+  runtimeStreamPhase: string | null;
+  effectiveMode: EffectiveConnectionMode;
+  setEffectiveMode: (mode: EffectiveConnectionMode) => void;
+  setModels: (m: ModelProfile[]) => void;
+  setSelectedModel: (id: string) => void;
+  ingestRuntimeState: (s: RuntimeState) => void;
+  ingestMindOverview: (o: MindOverview) => void;
+  setRuntimeLogs: (logs: RuntimeLogEntry[]) => void;
+  appendRuntimeLog: (entry: RuntimeLogEntry) => void;
+  setRuntimeReachable: (v: boolean) => void;
+  resetRuntimeBinding: () => void;
+  refreshModels: () => Promise<void>;
+  probeRuntime: () => Promise<void>;
+  probeRuntimeFull: () => Promise<void>;
+  /** SSOT — poll /v1/system/capability and update all runtime gates. */
+  syncSystemCapability: () => Promise<void>;
+  syncRuntimeProbeResult: (
+    result: "ready" | "warming" | "offline",
+    bootPhase?: string | null,
+    details?: { reason?: string | null; progress?: number | null },
+  ) => void;
+  applyFastReadySnapshot: (payload: {
+    status: string;
+    boot_phase?: string;
+    ws?: string;
+    render_mode?: string;
+  }) => void;
+  applyStreamEvent: (event: {
+    phase: string;
+    status?: string;
+    boot_phase?: string;
+    ws?: string;
+    render_mode?: string;
+    cluster?: string;
+    ready?: boolean;
+  }) => void;
+  applyV3Ready: (payload: {
+    status: string;
+    mode?: string;
+    boot_phase?: string;
+    ws?: string;
+    render_mode?: string;
+  }) => void;
+  applyComputeResult: (result: {
+    type?: string;
+    status?: string;
+    l3?: number;
+    cluster?: string;
+  }) => void;
+  refreshLogs: () => Promise<void>;
+  pullMindOverview: () => Promise<void>;
+  /** Pull overview, models, logs after Runtime becomes ready (debounced). */
+  hydrateRuntimeData: () => Promise<void>;
+  afterMemoryCapture: (payload: {
+    content: string;
+    layer: string;
+    label?: string;
+    keywords?: string[];
+    /** When false, skip /api/status refresh (batch uploads call pullMindOverview once). */
+    refresh?: boolean;
+  }) => Promise<void>;
+  getOverview: () => MindOverview;
+};
+
+const HYDRATE_MIN_INTERVAL_MS = 2_000;
+
+function validateOverview(
+  overview: MindOverview,
+  effectiveMode: EffectiveConnectionMode,
+): MindOverview {
+  try {
+    assertMindOverviewContract(overview as unknown as Record<string, unknown>);
+    return overview;
+  } catch (err) {
+    if (effectiveMode === "runtime" || effectiveMode === "fallback") {
+      console.warn("[cnexus] mind overview contract mismatch — keeping runtime payload", err);
+      return overview;
+    }
+    return DEMO_MIND_OVERVIEW;
+  }
+}
+
+function pickDefaultModelId(models: ModelProfile[], current: string): string {
+  if (current && models.some((m) => m.id === current && m.enabled)) {
+    const cur = models.find((m) => m.id === current)!;
+    if (cur.api_key_set || cur.provider === "ollama") return current;
+  }
+  const keyed =
+    models.find((m) => m.is_default && m.api_key_set && m.enabled) ??
+    models.find((m) => m.api_key_set && m.enabled);
+  if (keyed) return keyed.id;
+  const ollama = models.find((m) => m.id === "ollama-local" && m.enabled);
+  if (ollama) return ollama.id;
+  return models.find((m) => m.is_default && m.enabled)?.id ?? models.find((m) => m.enabled)?.id ?? "";
+}
+
+function overviewCacheKey(
+  effectiveMode: EffectiveConnectionMode,
+  mindOverview: MindOverview | null,
+  runtimeState: RuntimeState | null,
+  runtimeBootPhase: string | null,
+): string {
+  return [
+    effectiveMode,
+    runtimeBootPhase ?? "",
+    mindOverview?.generated_at ?? "",
+    mindOverview?.schema_version ?? "",
+    runtimeState?.timestamp ?? "",
+  ].join("|");
+}
+
+export const useMindStore = create<MindStoreState>((set, get) => {
+  let cachedOverview: { key: string; value: MindOverview } | null = null;
+  let probeInFlight: Promise<void> | null = null;
+  let hydrateInFlight: Promise<void> | null = null;
+  let lastHydrateAt = 0;
+
+  const invalidateOverviewCache = () => {
+    cachedOverview = null;
+  };
+
+  const markRuntimeWarming = (bootPhase?: string | null) => {
+    const phase = bootPhase ?? get().runtimeBootPhase;
+    const { runtimeOperationalReady } = get();
+    set({
+      runtimeReachable: true,
+      runtimeReady: false,
+      runtimeOperationalReady,
+      runtimeBootPhase: phase,
+    });
+    if (runtimeOperationalReady) {
+      markRuntimeReachabilityReady(phase);
+    } else {
+      markRuntimeReachabilityBooting(phase);
+    }
+  };
+
+  const applyGatewaySnapshot = (gw: Record<string, unknown>) => {
+    const wasOperational = get().runtimeOperationalReady;
+    const wasFull = get().runtimeReady;
+    const operational = Boolean(gw.operational_ready);
+    const full = Boolean(gw.full_ready);
+    const bootPhase = (gw.boot_phase as string | null | undefined) ?? get().runtimeBootPhase;
+    set({
+      runtimeReachable: true,
+      runtimeOperationalReady: operational,
+      runtimeReady: full,
+      runtimeCognitiveStatus: String(gw.cognitive_status ?? (operational ? "ready" : "warming")),
+      runtimeBootPhase: bootPhase,
+      runtimeCapabilities: {
+        ...get().runtimeCapabilities,
+        api: true,
+        chat: operational,
+        memory: operational,
+        llm: operational,
+        upload: true,
+        full,
+      },
+      runtimeBootReason: operational ? null : String(gw.reason ?? "gateway_warming"),
+      runtimeBootProgress:
+        typeof gw.progress === "number" ? gw.progress : operational ? 100 : get().runtimeBootProgress,
+      runtimeRenderMode: "gateway_ssot_v1",
+    });
+    if (operational) {
+      markRuntimeReachabilityReady(bootPhase);
+      syncRuntimeReachabilityFromMindStore(true, bootPhase, "ws");
+      publishRuntimeReachability({
+        reachable: true,
+        bootPhase,
+        bootSessionId: getBootSessionId(),
+      });
+    } else {
+      markRuntimeReachabilityBooting(bootPhase);
+    }
+    if (operational && !wasOperational) {
+      void get().hydrateRuntimeData();
+    } else if (full && !wasFull) {
+      void get().hydrateRuntimeData();
+    }
+    reportClientPhaseFlip(operational ? "ready" : "warming");
+  };
+
+  const applyCapabilitySnapshot = (snap: SystemCapabilitySnapshot) => {
+    const wasFull = get().runtimeReady;
+    const wasOperational = get().runtimeOperationalReady;
+    const bootPhase = snap.boot_phase ?? null;
+    set({
+      runtimeReachable: true,
+      runtimeOperationalReady: snap.operational_ready,
+      runtimeReady: snap.full_ready,
+      runtimeCognitiveStatus: snap.cognitive_status,
+      runtimeCapabilities: snap.capabilities,
+      runtimeBootPhase: bootPhase ?? get().runtimeBootPhase,
+      runtimeBootReason: snap.full_ready ? null : snap.reason,
+      runtimeBootProgress: snap.full_ready ? 100 : snap.progress,
+      runtimeRenderMode: "capability_v1",
+    });
+    if (snap.operational_ready) {
+      markRuntimeReachabilityReady(bootPhase);
+      syncRuntimeReachabilityFromMindStore(true, bootPhase, "ws");
+      publishRuntimeReachability({
+        reachable: true,
+        bootPhase,
+        bootSessionId: getBootSessionId(),
+      });
+    } else if (snap.capabilities.api || snap.status === "warming") {
+      markRuntimeReachabilityBooting(bootPhase);
+    } else {
+      markRuntimeProbeFailed();
+      return;
+    }
+    if (snap.operational_ready && !wasOperational) {
+      void get().hydrateRuntimeData();
+    } else if (snap.full_ready && !wasFull) {
+      void get().hydrateRuntimeData();
+    }
+    const phase = snap.operational_ready ? "ready" : snap.capabilities.api ? "warming" : "offline";
+    reportClientPhaseFlip(phase);
+    if (snap.full_ready !== wasFull || snap.operational_ready !== wasOperational) {
+      void reportRuntimeConflict(
+        "CAPABILITY_TRANSITION",
+        {
+          operational_ready: snap.operational_ready,
+          full_ready: snap.full_ready,
+          cognitive_status: snap.cognitive_status,
+          boot_phase: snap.boot_phase,
+          reason: snap.reason,
+        },
+        "info",
+      );
+    }
+  };
+
+  const markRuntimeHealthy = () => {
+    const { runtimeReady, runtimeReachable, runtimeBootPhase, runtimeOperationalReady } = get();
+    if (!runtimeOperationalReady && !runtimeReady) return;
+
+    const bootPhase = runtimeBootPhase;
+    if (!runtimeReachable) {
+      set({ runtimeReachable: true });
+    }
+    markRuntimeReachabilityReady(bootPhase);
+    syncRuntimeReachabilityFromMindStore(true, bootPhase, "ws");
+    publishRuntimeReachability({
+      reachable: true,
+      bootPhase,
+      bootSessionId: getBootSessionId(),
+    });
+  };
+
+  const markRuntimeProbeFailed = () => {
+    set({
+      runtimeReady: false,
+      runtimeOperationalReady: false,
+      runtimeReachable: false,
+      runtimeCapabilities: EMPTY_CAPABILITIES,
+    });
+    markRuntimeReachabilityFailed();
+  };
+
+  const computeOverview = (): MindOverview => {
+    const { effectiveMode, mindOverview, runtimeState, runtimeBootPhase } = get();
+    const key = overviewCacheKey(effectiveMode, mindOverview, runtimeState, runtimeBootPhase);
+    if (cachedOverview?.key === key) return cachedOverview.value;
+    const value = validateOverview(
+      resolveOverviewForSource(
+        effectiveMode,
+        DEMO_MIND_OVERVIEW,
+        mindOverview,
+        runtimeState,
+        { bootPhase: runtimeBootPhase },
+      ),
+      effectiveMode,
+    );
+    cachedOverview = { key, value };
+    return value;
+  };
+
+  return {
+    models: [],
+    selectedModelId: "",
+    runtimeState: null,
+    mindOverview: null,
+    runtimeLogs: [],
+    runtimeReachable: true,
+    runtimeReady: true,
+    runtimeOperationalReady: true,
+    runtimeCapabilities: { api: true, chat: true, memory: true, llm: true, upload: true, full: true },
+    runtimeCognitiveStatus: "warming",
+    runtimeBootPhase: "boot_4_ready",
+    runtimeBootReason: null,
+    runtimeBootProgress: 100,
+    runtimeL3Status: null,
+    runtimeRenderMode: "surgical_bridge_v2",
+    runtimeStreamPhase: null,
+    effectiveMode: "runtime",
+
+    setEffectiveMode: (effectiveMode) => {
+      invalidateOverviewCache();
+      set({ effectiveMode });
+    },
+
+    setModels: (models) => set({ models }),
+    setSelectedModel: (selectedModelId) => set({ selectedModelId }),
+
+    ingestRuntimeState: (runtimeState) => {
+      invalidateOverviewCache();
+      set({
+        runtimeState,
+        mindOverview:
+          runtimeState.mind_overview !== null && runtimeState.mind_overview !== undefined
+            ? runtimeState.mind_overview
+            : get().mindOverview,
+      });
+    },
+
+    ingestMindOverview: (mindOverview) => {
+      invalidateOverviewCache();
+      markRuntimeHealthy();
+      set({ mindOverview: validateOverview(mindOverview, get().effectiveMode) });
+    },
+
+    setRuntimeLogs: (runtimeLogs) => set({ runtimeLogs }),
+    appendRuntimeLog: (entry) => {
+      set((s) => ({ runtimeLogs: [...s.runtimeLogs.slice(-199), entry] }));
+    },
+
+    setRuntimeReachable: (runtimeReachable) => set({ runtimeReachable }),
+
+    resetRuntimeBinding: () => {
+      invalidateOverviewCache();
+      probeInFlight = null;
+      clearRuntimeReachability();
+      resetRuntimeReachabilityStore();
+      set({
+        runtimeState: null,
+        mindOverview: null,
+        runtimeLogs: [],
+        runtimeReachable: false,
+        runtimeReady: false,
+        runtimeOperationalReady: false,
+        runtimeCapabilities: EMPTY_CAPABILITIES,
+        runtimeCognitiveStatus: null,
+        runtimeBootPhase: null,
+        runtimeL3Status: null,
+        runtimeRenderMode: null,
+        runtimeStreamPhase: null,
+      });
+    },
+
+    applyFastReadySnapshot: ({ status, boot_phase, render_mode }) => {
+      set({
+        runtimeReachable: true,
+        runtimeBootPhase: boot_phase ?? status,
+        runtimeRenderMode: render_mode ?? "fast_path_v1",
+        runtimeL3Status: null,
+      });
+      void get().syncSystemCapability();
+    },
+
+    applyStreamEvent: (event) => {
+      const phase = event.phase;
+      set({
+        runtimeStreamPhase: phase,
+        runtimeRenderMode: event.render_mode ?? "fast_path_v2",
+        runtimeBootPhase: event.boot_phase ?? get().runtimeBootPhase,
+        runtimeReachable: true,
+      });
+      if (phase === "shell" || phase === "final") {
+        void get().syncSystemCapability();
+      }
+    },
+
+    applyV3Ready: ({ status, boot_phase, render_mode }) => {
+      set({
+        runtimeReachable: true,
+        runtimeBootPhase: boot_phase ?? status ?? get().runtimeBootPhase,
+        runtimeRenderMode: render_mode ?? "fast_path_v3",
+        runtimeStreamPhase: "ui_driver",
+        runtimeL3Status: null,
+      });
+      void get().syncSystemCapability();
+    },
+
+    applyComputeResult: (result) => {
+      if (result.type === "status" && typeof result.l3 === "number") {
+        set({
+          runtimeL3Status: {
+            queue_length: result.l3,
+            scheduler: "ui-driven-v3",
+          },
+        });
+      }
+    },
+
+    syncRuntimeProbeResult: (_result, bootPhase, details) => {
+      if (bootPhase) {
+        set({ runtimeBootPhase: bootPhase });
+      }
+      if (details?.reason != null || details?.progress != null) {
+        set({
+          runtimeBootReason: details.reason ?? get().runtimeBootReason,
+          runtimeBootProgress: details.progress ?? get().runtimeBootProgress,
+        });
+      }
+      void get().syncSystemCapability();
+    },
+
+    getOverview: computeOverview,
+
+    refreshModels: async () => {
+      try {
+        const { models } = await brainApi.models();
+        const fallbackId = pickDefaultModelId(models, get().selectedModelId);
+        set({
+          models,
+          selectedModelId: fallbackId,
+        });
+        markRuntimeHealthy();
+      } catch {
+        /* models optional while runtime warms up */
+      }
+    },
+
+    probeRuntime: async () => {
+      return get().syncSystemCapability();
+    },
+
+    probeRuntimeFull: async () => {
+      return get().syncSystemCapability();
+    },
+
+    syncSystemCapability: async () => {
+      if (probeInFlight) return probeInFlight;
+
+      probeInFlight = (async () => {
+        const { isPersonalMode } = await import("@/lib/personalGuard");
+        const personal = isPersonalMode();
+        const statusTimeoutMs = personal ? 15_000 : 3_000;
+        // === [BRIDGE] CNexus 2.0 Personal Backend: ACL direct feed ===
+        try {
+          const statusUrl = "/api/status";
+          const resp = await fetch(statusUrl, { signal: AbortSignal.timeout(statusTimeoutMs) });
+          if (resp.ok) {
+            const raw = await resp.json();
+            // Translate v2 status into MindOverview via adapter ACL
+            const { statusToMindOverview } = await import("../src/adapters/cnexus_v2.adapter");
+            const overview = statusToMindOverview(raw);
+            set({
+              mindOverview: validateOverview(overview, "runtime"),
+              runtimeReachable: true,
+              runtimeReady: true,
+              runtimeOperationalReady: true,
+              runtimeBootPhase: "boot_4_ready",
+              runtimeBootReason: null,
+              runtimeBootProgress: 100,
+              runtimeCognitiveStatus: "ready",
+              runtimeRenderMode: "surgical_bridge_v2",
+              effectiveMode: "runtime",
+              runtimeCapabilities: { api: true, chat: true, memory: true, llm: true, upload: true, full: true },
+            });
+            markRuntimeReachabilityReady("boot_4_ready");
+            syncRuntimeReachabilityFromMindStore(true, "boot_4_ready", "ws");
+            publishRuntimeReachability({ reachable: true, bootPhase: "boot_4_ready", bootSessionId: getBootSessionId() });
+            void get().hydrateRuntimeData();
+            return;
+          }
+        } catch {
+          // Personal gateway may be busy during LLM — keep last-known-good reachability.
+          if (personal && get().runtimeReachable) return;
+        }
+
+        // === [FALLBACK] Offline mode: activate runtime with static data ===
+        if (personal && get().runtimeReachable) return;
+        try {
+          const { statusToMindOverview } = await import("../src/adapters/cnexus_v2.adapter");
+          const overview = statusToMindOverview({
+            active: false,
+            engine_initialized: true,
+            memory_count: 0,
+            execution_count: 0,
+            current_iteration: 0,
+            cog_state: { active_intent: "idle", last_content_hash: "", accumulated_weight: 0, recall_strength: 0, total_observations: 0, last_intent: "idle", consecutive_same_intent: 0 },
+          });
+          set({
+            mindOverview: validateOverview(overview, "runtime"),
+            runtimeReachable: true,
+            runtimeReady: true,
+            runtimeOperationalReady: true,
+            runtimeBootPhase: "boot_4_ready",
+            runtimeBootReason: "offline_mock",
+            runtimeBootProgress: 100,
+            runtimeCognitiveStatus: "warming",
+            runtimeRenderMode: "surgical_bridge_v2",
+            effectiveMode: "runtime",
+            runtimeCapabilities: { api: true, chat: true, memory: false, llm: false, upload: false, full: true },
+          });
+          markRuntimeReachabilityReady("boot_4_ready");
+          syncRuntimeReachabilityFromMindStore(true, "boot_4_ready", "ws");
+          publishRuntimeReachability({ reachable: true, bootPhase: "boot_4_ready", bootSessionId: getBootSessionId() });
+          return;
+        } catch { /* adapter load failure — ultimate fallback */ }
+
+        set({
+          runtimeBootReason: "gateway_unreachable",
+          runtimeBootPhase: get().runtimeBootPhase ?? "ERROR",
+        });
+        if (personal && get().runtimeReachable) return;
+        markRuntimeProbeFailed();
+        void reportRuntimeConflict("PROBE_OFFLINE", { gateway: "unreachable" }, "error");
+      })().finally(() => {
+        probeInFlight = null;
+      });
+
+      return probeInFlight;
+    },
+
+    refreshLogs: async () => {
+      try {
+        const { logs } = await brainApi.logs(80);
+        set({ runtimeLogs: logs });
+      } catch {
+        /* log stream may lag; do not flip reachability */
+      }
+    },
+
+    pullMindOverview: async () => {
+      try {
+        const { isPersonalMode } = await import("@/lib/personalGuard");
+        const overview = isPersonalMode()
+          ? await (await import("@/lib/api")).cnexusProductApi.v2Overview()
+          : await brainApi.mindOverview();
+        invalidateOverviewCache();
+        set({ mindOverview: validateOverview(overview, get().effectiveMode) });
+        markRuntimeHealthy();
+      } catch {
+        /* overview refresh failure alone must not drop Live status */
+      }
+    },
+
+    hydrateRuntimeData: async () => {
+      const now = Date.now();
+      if (hydrateInFlight) return hydrateInFlight;
+      if (now - lastHydrateAt < HYDRATE_MIN_INTERVAL_MS) return;
+      const { runtimeReachable, runtimeReady, runtimeOperationalReady } = get();
+      if (!runtimeReachable && !runtimeReady && !runtimeOperationalReady) return;
+
+      lastHydrateAt = now;
+      hydrateInFlight = (async () => {
+        const s = get();
+        await Promise.allSettled([
+          s.pullMindOverview(),
+          s.refreshModels(),
+          s.refreshLogs(),
+        ]);
+      })().finally(() => {
+        hydrateInFlight = null;
+      });
+      return hydrateInFlight;
+    },
+
+    afterMemoryCapture: async ({ content, layer, label, keywords, refresh = true }) => {
+      const { effectiveMode } = get();
+      if (effectiveMode === "demo") {
+        const base = get().mindOverview ?? get().getOverview();
+        const tag = layer === "episodic" ? "episode" : layer;
+        const title = content.trim().slice(0, 120) || label || "导入内容";
+        const keywordHint = keywords?.length ? ` · ${keywords.slice(0, 4).join("、")}` : "";
+        const item = {
+          id: `capture-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          title,
+          tag,
+          desc: `导入 · ${label ?? "文本"}${keywordHint}`,
+          meta: "刚刚",
+        };
+        invalidateOverviewCache();
+        set({
+          mindOverview: validateOverview({
+            ...base,
+            generated_at: new Date().toISOString(),
+            memory_items: [item, ...base.memory_items].slice(0, 24),
+            feeds: {
+              ...base.feeds,
+              episodic:
+                tag === "episode"
+                  ? [{ text: title.slice(0, 80), ago: "刚刚" }, ...base.feeds.episodic].slice(0, 8)
+                  : base.feeds.episodic,
+              changes: [`已导入: ${title.slice(0, 48)}`, ...base.feeds.changes].slice(0, 8),
+            },
+            system: { ...base.system, last_update_ago: "刚刚" },
+          }, "demo"),
+        });
+        return;
+      }
+      if (refresh !== false) {
+        await get().pullMindOverview();
+      }
+    },
+  };
+});
+
+export type { RuntimeState, RuntimeLogEntry, ModelProfile } from "@/lib/api";

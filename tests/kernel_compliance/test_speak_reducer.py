@@ -29,6 +29,15 @@ def test_speak_calls_inference(neutral_state):
     context = {"context_bundle": "user said hello"}
     response = speak_fn(decision, context, neutral_state)
     assert isinstance(response["text"], str)
+    assert response["text"] != context["context_bundle"]
+
+
+def test_speak_identity_question(neutral_state):
+    decision = {"strategy": "SPEAK", "confidence": 0.8, "identity_risk": "low", "active_intent": "converse", "reason": "normal"}
+    context = {"context_bundle": "你是谁"}
+    response = speak_fn(decision, context, neutral_state)
+    assert "CNexus" in response["text"]
+    assert response["text"] != "你是谁"
 
 # ---- L1 SPEAK §05: SPEAK does not modify State ----
 def test_speak_does_not_modify_state(neutral_state):
