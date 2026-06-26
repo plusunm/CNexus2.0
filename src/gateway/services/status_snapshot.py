@@ -138,6 +138,7 @@ class StatusSnapshotService:
                     "identity": "CNexus 2.0 Personal",
                 },
                 "memory_items": memory_items,
+                "runtime": dict(engine.get("runtime") or {}),
                 "consolidation": self._subsystems.consolidation_status(),
                 "wormhole_links": _wormhole_links_snapshot(engine),
                 "projection_links": _projection_links_snapshot(engine),

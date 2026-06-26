@@ -631,8 +631,8 @@ export const navL = {
   refresh: { en: "Refresh", zh: "刷新" } satisfies BilingualLabel,
   clearMemory: { en: "Clear memory", zh: "一键清空" } satisfies BilingualLabel,
   clearMemoryConfirm: {
-    en: "Clear all memory blocks, graph nodes, and chat history? Model settings will be kept.",
-    zh: "确定清空全部记忆、图谱节点与对话记录？模型配置将保留。",
+    en: "Clear memory blocks, graph nodes, and chat history? Foundation / constitution memories are preserved.",
+    zh: "确定清空记忆、图谱节点与对话记录？认知宪法与系统基石记忆将保留。",
   } satisfies BilingualLabel,
   clearMemoryBusy: { en: "Clearing…", zh: "清空中…" } satisfies BilingualLabel,
   switchDataSource: { en: "Switch data source", zh: "切换数据源" } satisfies BilingualLabel,

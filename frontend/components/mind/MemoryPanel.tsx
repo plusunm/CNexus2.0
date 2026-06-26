@@ -3,22 +3,43 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { brainApi } from "@/lib/api";
-import { useMindOverview } from "@/cnexus-kernel";
+import { useMindOverview, useMindStore } from "@/cnexus-kernel";
 import { useEmbeddingStatus } from "@/hooks/useEmbeddingStatus";
 import { EmbeddingModeBadge } from "./EmbeddingModeBadge";
 import { OllamaControlButton } from "./OllamaControlButton";
 import { useMindTheme } from "./MindUiProvider";
 import { ClearMemoryButton } from "./ClearMemoryButton";
+import { FoundationVersionTree } from "./FoundationVersionTree";
+import { RuntimeBootBadge } from "./RuntimeBootBadge";
+import { ActiveProjectBadge } from "./ActiveProjectBadge";
+import { PromoteToL4Button } from "./PromoteToL4Button";
+import {
+  canPromoteMemoryItem,
+  MEMORY_LEVEL_LABEL,
+  resolveMemoryLevel,
+} from "@/lib/memoryPromote";
 
-const TABS = ["全部", "身份", "目标", "信念", "经历"] as const;
+const TABS = ["全部", "基石", "项目", "身份", "目标", "信念", "经历"] as const;
 const EMBEDDING_TABS = new Set<(typeof TABS)[number]>(["信念", "经历"]);
 const TAB_TO_TAG: Record<(typeof TABS)[number], string | null> = {
   全部: null,
+  基石: "__foundation__",
+  项目: "__project__",
   身份: "identity",
   目标: "goal",
   信念: "belief",
   经历: "episode",
 };
+
+const LEVEL_LABEL = MEMORY_LEVEL_LABEL;
+
+function levelColor(level: string | undefined, t: ReturnType<typeof useMindTheme>) {
+  if (level === "foundation") return "#a78bfa";
+  if (level === "project") return "#38bdf8";
+  if (level === "core") return "#f59e0b";
+  if (level === "temporary") return t.textLight;
+  return t.textMuted;
+}
 
 type PanelVariant = "overview" | "cognitive" | "float";
 
@@ -27,12 +48,14 @@ export function MemoryPanel({ variant = "overview" }: { variant?: PanelVariant }
   const isCognitive = variant === "cognitive" || variant === "float";
   const isFloat = variant === "float";
   const { overview, isDemo, isLive, isFallback } = useMindOverview();
+  const pullMindOverview = useMindStore((s) => s.pullMindOverview);
   const embeddingStatus = useEmbeddingStatus();
   const [tab, setTab] = useState<(typeof TABS)[number]>("全部");
   const [query, setQuery] = useState("");
   const [recallPreview, setRecallPreview] = useState<string | null>(null);
   const [recallBusy, setRecallBusy] = useState(false);
   const [memoryStats, setMemoryStats] = useState<string | null>(null);
+  const [foundationTrees, setFoundationTrees] = useState<Array<Record<string, unknown>>>([]);
 
   const tagColor = (tag: string) => {
     if (tag === "goal") return t.blue;
@@ -69,11 +92,28 @@ export function MemoryPanel({ variant = "overview" }: { variant?: PanelVariant }
     if (!isDemo && (isLive || isFallback)) void loadStats();
   }, [isDemo, isLive, isFallback, overview.memory_items.length]);
 
+  useEffect(() => {
+    if (isDemo || tab !== "基石") return;
+    void brainApi
+      .foundationVersionTree()
+      .then((data) => setFoundationTrees((data.trees as Array<Record<string, unknown>>) || []))
+      .catch(() => setFoundationTrees([]));
+  }, [isDemo, tab, overview.memory_items.length]);
+
   const items = useMemo(() => {
     const tag = TAB_TO_TAG[tab];
     const indexed = overview.memory_items.map((item, sourceIndex) => ({ item, sourceIndex }));
     let rows = indexed;
-    if (tag) rows = rows.filter((row) => row.item.tag === tag);
+    if (tag === "__foundation__") {
+      rows = rows.filter((row) => {
+        const level = resolveMemoryLevel(row.item);
+        return level === "foundation" || level === "core" || row.item.meta === "foundation" || row.item.meta === "core";
+      });
+    } else if (tag === "__project__") {
+      rows = rows.filter((row) => resolveMemoryLevel(row.item) === "project" || row.item.meta === "project");
+    } else if (tag) {
+      rows = rows.filter((row) => row.item.tag === tag);
+    }
     if (query.trim()) {
       const q = query.trim().toLowerCase();
       rows = rows.filter(
@@ -115,6 +155,8 @@ export function MemoryPanel({ variant = "overview" }: { variant?: PanelVariant }
             <p className="text-sm font-semibold" style={{ color: t.blue }}>
               Memory 浏览面板
             </p>
+            <RuntimeBootBadge />
+            <ActiveProjectBadge />
             <ClearMemoryButton />
           </div>
         )}
@@ -205,6 +247,9 @@ export function MemoryPanel({ variant = "overview" }: { variant?: PanelVariant }
         }`}
         data-no-drag
       >
+        {tab === "基石" && foundationTrees.length > 0 && (
+          <FoundationVersionTree trees={foundationTrees as never} />
+        )}
         {items.length === 0 && (
           <p className="text-xs p-4 text-center" style={{ color: t.textMuted }}>
             暂无匹配记忆
@@ -213,6 +258,9 @@ export function MemoryPanel({ variant = "overview" }: { variant?: PanelVariant }
         <div className="space-y-1">
         {items.map((item) => {
           const color = tagColor(item.tag);
+          const memoryLevel = resolveMemoryLevel(item);
+          const levelLabel = memoryLevel ? LEVEL_LABEL[memoryLevel] || memoryLevel : null;
+          const showPromote = !isDemo && canPromoteMemoryItem(item);
           return (
             <div
               key={item.id}
@@ -236,6 +284,18 @@ export function MemoryPanel({ variant = "overview" }: { variant?: PanelVariant }
                   >
                     {item.tag}
                   </span>
+                  {levelLabel && (
+                    <span
+                      className="text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium"
+                      style={{
+                        backgroundColor: `${levelColor(memoryLevel, t)}22`,
+                        color: levelColor(memoryLevel, t),
+                      }}
+                    >
+                      {levelLabel}
+                      {item.memory_version ? ` v${item.memory_version}` : ""}
+                    </span>
+                  )}
                 </div>
                 <p className="text-[11px] break-words whitespace-pre-wrap" style={{ color: t.textMuted }}>
                   {item.desc}
@@ -245,14 +305,18 @@ export function MemoryPanel({ variant = "overview" }: { variant?: PanelVariant }
                   style={{ color: t.textLight, fontFamily: t.fontMono }}
                 >
                   {item.meta}
+                  {memoryLevel === "foundation" ? " · append-only" : ""}
                 </p>
               </div>
-              {!isCognitive && !isFloat && (
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
-                  <Pencil className="w-3.5 h-3.5" style={{ color: t.textLight }} />
-                  <Trash2 className="w-3.5 h-3.5" style={{ color: t.textLight }} />
-                </div>
-              )}
+              <div className="flex flex-col items-end gap-1 shrink-0">
+                {showPromote && <PromoteToL4Button item={item} />}
+                {!isCognitive && !isFloat && (
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                    <Pencil className="w-3.5 h-3.5" style={{ color: t.textLight }} />
+                    <Trash2 className="w-3.5 h-3.5" style={{ color: t.textLight }} />
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}

@@ -76,6 +76,8 @@ def _stub_pipeline_deps(**overrides):
         resolve_model=lambda _id: None,
         threshold_activated_fragments=lambda **k: [],
         format_activation_context=lambda *a, **k: "",
+        compose_llm_context=lambda mem="": mem,
+        runtime_context=lambda: "",
         memory_recall=lambda _text, _scope="local": {"context": ""},
         negotiation_conflict_context=lambda: None,
         record_emergent_block_refs=lambda: None,

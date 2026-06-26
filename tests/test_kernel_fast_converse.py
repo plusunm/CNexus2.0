@@ -74,6 +74,8 @@ class FastConversePrepareTests(unittest.TestCase):
             resolve_model=lambda _id: (calls.__setitem__("resolve", calls["resolve"] + 1) or {"id": "cnexus-local", "provider": "cnexus", "enabled": True}),
             threshold_activated_fragments=lambda **k: (calls.__setitem__("activation", calls["activation"] + 1) or []),
             format_activation_context=lambda *a, **k: "",
+            compose_llm_context=lambda mem="": mem,
+            runtime_context=lambda: "",
             memory_recall=lambda _text, _scope="local": {"context": ""},
             negotiation_conflict_context=lambda: None,
             record_emergent_block_refs=lambda: None,

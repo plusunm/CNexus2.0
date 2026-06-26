@@ -8,6 +8,7 @@ import { useMindOverview, useMindStore } from "@/cnexus-kernel";
 import { clearChatMessages } from "@/lib/chatHistoryStorage";
 import { isPersonalMode } from "@/lib/personalGuard";
 import { useCognitiveCopy } from "@/lib/cognitive";
+import { EMPTY_MIND_OVERVIEW } from "@/lib/runtimeTypes";
 import { useMindTheme } from "./MindUiProvider";
 
 type Props = {
@@ -20,6 +21,7 @@ export function ClearMemoryButton({ compact, className }: Props) {
   const { t: copy } = useCognitiveCopy();
   const { isDemo, isLive, isFallback } = useMindOverview();
   const pullMindOverview = useMindStore((s) => s.pullMindOverview);
+  const ingestMindOverview = useMindStore((s) => s.ingestMindOverview);
   const [busy, setBusy] = useState(false);
 
   if (!isPersonalMode()) return null;
@@ -33,7 +35,12 @@ export function ClearMemoryButton({ compact, className }: Props) {
     try {
       await brainApi.v2ClearMemory(true);
       clearChatMessages();
-      await pullMindOverview();
+      ingestMindOverview({
+        ...EMPTY_MIND_OVERVIEW,
+        generated_at: new Date().toISOString(),
+        system: { ...EMPTY_MIND_OVERVIEW.system, api_online: true },
+      });
+      void pullMindOverview();
     } catch (err) {
       window.alert(err instanceof Error ? err.message : copy("clearMemoryFailed"));
     } finally {

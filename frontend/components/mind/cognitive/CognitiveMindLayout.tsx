@@ -25,7 +25,7 @@ export default function CognitiveMindLayout() {
         className="flex items-center justify-between gap-4 px-4 md:px-6 py-3 border-b shrink-0"
         style={{ borderColor: t.border, backgroundColor: t.surface }}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <span className="text-sm font-bold tracking-tight" style={{ color: t.blue }}>
             CNexus
           </span>
@@ -33,8 +33,8 @@ export default function CognitiveMindLayout() {
             认知模式 · Attention Gravity
           </span>
         </div>
-        <MindModeSwitch compact />
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3 shrink-0">
+          <MindModeSwitch compact />
           {!isPersonalMode() && (
             <button
               type="button"

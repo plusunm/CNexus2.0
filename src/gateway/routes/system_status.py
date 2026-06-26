@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Callable, Dict, Optional
 from urllib.parse import parse_qs
 
 from ..http.responses import HttpRouteResponse
@@ -11,6 +11,7 @@ from ..services.gateway_intent import GatewayIntentService
 from ..services.memory_recall import MemoryRecallService
 from ..services.network_status import NetworkStatusService
 from ..services.peers_status import PeersStatusService
+from ..services.project_control import ProjectControlService
 from ..services.shadow_projection import ShadowProjectionService
 from ..services.status_snapshot import StatusSnapshotService
 from ..services.status_subsystems import StatusSubsystemsService
@@ -31,6 +32,8 @@ class SystemStatusRouteHandler:
         shadow: ShadowProjectionService,
         memory_recall: MemoryRecallService,
         gateway_intent: GatewayIntentService | None = None,
+        project_control: ProjectControlService | None = None,
+        scratch_status_fn: Callable[[], Dict[str, Any]] | None = None,
     ):
         self._probe = probe
         self._subsystems = subsystems
@@ -41,6 +44,8 @@ class SystemStatusRouteHandler:
         self._shadow = shadow
         self._memory_recall = memory_recall
         self._gateway_intent = gateway_intent
+        self._project_control = project_control
+        self._scratch_status_fn = scratch_status_fn
 
     def handle_get(self, path: str, query: Optional[str]) -> Optional[HttpRouteResponse]:
         qs = parse_qs(query or "")
@@ -115,6 +120,26 @@ class SystemStatusRouteHandler:
 
         if path == "/v1/memory/stats":
             return HttpRouteResponse.json(self._probe.memory_stats())
+
+        if path == "/v1/memory/foundation/versions":
+            key = (qs.get("constitution_key") or qs.get("key") or [""])[0]
+            return HttpRouteResponse.json(self._probe.memory_foundation_versions(key or None))
+
+        if path == "/v1/runtime/boot":
+            return HttpRouteResponse.json(self._probe.runtime_boot_status())
+
+        if path == "/v1/project/active" and self._project_control is not None:
+            return HttpRouteResponse.json(self._project_control.get_active())
+
+        if path == "/v1/project/list" and self._project_control is not None:
+            return HttpRouteResponse.json(self._project_control.list_projects())
+
+        if path == "/v1/conversation/scratch" and self._scratch_status_fn is not None:
+            return HttpRouteResponse.json(self._scratch_status_fn())
+
+        if path == "/v1/memory/foundation/tree":
+            key = (qs.get("constitution_key") or qs.get("key") or [""])[0]
+            return HttpRouteResponse.json(self._probe.memory_foundation_tree(key or None))
 
         if path == "/v1/execution/status":
             return HttpRouteResponse.json(self._shadow.execution_status())

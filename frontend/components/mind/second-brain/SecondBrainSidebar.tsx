@@ -108,7 +108,7 @@ export function SecondBrainSidebar({ activeTab, onTabChange }: Props) {
           <Sparkles className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "#5eead4" }} />
           <span>需要调试完整认知链路时，切换到认知实验室。</span>
         </div>
-        <ExperienceTierSwitch />
+        <ExperienceTierSwitch compact showHint />
         <LanguageProjectionSwitch compact />
       </div>
     </aside>

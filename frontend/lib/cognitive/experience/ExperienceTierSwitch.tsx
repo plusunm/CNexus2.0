@@ -15,6 +15,8 @@ type Props = {
   className?: string;
   /** Pin to top of shell — full width, always shows labels */
   prominent?: boolean;
+  /** Subtitle under buttons (off in compact top bars) */
+  showHint?: boolean;
 };
 
 const PERSONAS: ExperiencePersona[] = ["second-brain", "cognitive-lab"];
@@ -29,19 +31,20 @@ const PERSONA_LABEL_KEYS: Record<ExperiencePersona, CopyKey> = {
   "cognitive-lab": "personaCognitiveLab",
 };
 
-export function ExperienceTierSwitch({ compact, className, prominent }: Props) {
+export function ExperienceTierSwitch({ compact, className, prominent, showHint }: Props) {
   const theme = useMindTheme();
   const projection = useLanguageProjection();
   const lang = projection === "both" ? "zh" : projection;
   const { persona, setPersona } = useExperience();
   const showLabels = prominent || !compact;
+  const hintVisible = showHint ?? (prominent || !compact);
 
   return (
     <div className={clsx("space-y-1", className)} data-cnexus-experience-switch>
       <div
         className={clsx(
-          "inline-flex rounded-lg border p-0.5 gap-0.5",
-          prominent ? "w-full max-w-md" : "w-full",
+          "grid grid-cols-2 rounded-lg border p-0.5 gap-0.5 w-full",
+          prominent ? "max-w-md" : undefined,
         )}
         style={{ borderColor: theme.border, backgroundColor: theme.surface }}
         role="tablist"
@@ -62,24 +65,24 @@ export function ExperienceTierSwitch({ compact, className, prominent }: Props) {
               role="tab"
               aria-selected={active}
               className={clsx(
-                "flex flex-1 items-center justify-center gap-1.5 rounded-md font-medium transition",
+                "flex min-h-[34px] items-center justify-center gap-1.5 rounded-md font-medium transition box-border",
                 prominent ? "px-3 py-2 text-sm" : compact ? "px-2 py-1.5 text-[11px]" : "px-2 py-1.5 text-xs",
               )}
               style={{
                 backgroundColor: active ? theme.sidebarActive : "transparent",
                 color: active ? (p === "second-brain" ? "#5eead4" : theme.purple) : theme.textMuted,
-                border: active ? `1px solid ${theme.border}` : "1px solid transparent",
+                boxShadow: active ? `inset 0 0 0 1px ${theme.border}` : "none",
               }}
               onClick={() => setPersona(p)}
               title={projectLabel(PERSONA_LABELS[p].subtitle, lang)}
             >
               <Icon className={clsx("shrink-0", prominent ? "w-4 h-4" : "w-3.5 h-3.5")} />
-              {showLabels && <span className="truncate">{label}</span>}
+              {showLabels && <span className="truncate leading-none">{label}</span>}
             </button>
           );
         })}
       </div>
-      {(prominent || !compact) && (
+      {hintVisible && (
         <p className="text-[10px] leading-snug px-0.5" style={{ color: theme.textLight }}>
           {projectLabel(PERSONA_LABELS[persona].subtitle, lang)}
         </p>

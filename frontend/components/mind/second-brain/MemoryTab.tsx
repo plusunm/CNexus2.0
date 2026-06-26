@@ -8,6 +8,8 @@ import { useMindTheme } from "../MindUiProvider";
 import { useCognitiveCopy, EmergenceObject } from "@/lib/cognitive";
 import { WhyExplainSheet } from "./WhyExplainSheet";
 import { SbSection, SbCard, SbStat, SbChip, SbEmptyState } from "./SbUIKit";
+import { PromoteToL4Button } from "../PromoteToL4Button";
+import { MEMORY_LEVEL_LABEL, resolveMemoryLevel } from "@/lib/memoryPromote";
 import type { CognitiveDiscoveryBlock, CognitiveInsightBlock } from "@/lib/cognitiveTypes";
 import type { CognitiveObject } from "@/lib/cognitive";
 
@@ -30,7 +32,7 @@ type Props = {
 export function MemoryTab({ onOpenLab }: Props) {
   const t = useMindTheme();
   const { t: copy } = useCognitiveCopy();
-  const { overview } = useMindOverview();
+  const { overview, isDemo } = useMindOverview();
   const { data } = useCognitiveSynthesis(0);
   const [explainObject, setExplainObject] = useState<CognitiveObject | null>(null);
   const [filter, setFilter] = useState<MemoryFilter>("all");
@@ -124,20 +126,43 @@ export function MemoryTab({ onOpenLab }: Props) {
           </SbEmptyState>
         ) : (
           <ul className="space-y-2 mt-1">
-            {displayMemories.map((item, index) => (
-              <li key={`${item.title}-${index}`}>
+            {displayMemories.map((item) => {
+              const memoryLevel = resolveMemoryLevel(item);
+              const levelLabel = memoryLevel ? MEMORY_LEVEL_LABEL[memoryLevel] || memoryLevel : null;
+              return (
+              <li key={item.id || item.title}>
                 <SbCard padding="sm">
-                  <p className="text-sm font-medium leading-snug" style={{ color: t.text }}>
-                    {item.title}
-                  </p>
-                  {item.desc && (
-                    <p className="text-xs mt-1.5 line-clamp-2 leading-relaxed" style={{ color: t.textMuted }}>
-                      {item.desc}
-                    </p>
-                  )}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium leading-snug" style={{ color: t.text }}>
+                          {item.title}
+                        </p>
+                        {levelLabel && (
+                          <span
+                            className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                            style={{
+                              color: memoryLevel === "foundation" ? "#a78bfa" : t.textMuted,
+                              backgroundColor:
+                                memoryLevel === "foundation" ? "rgba(167,139,250,0.12)" : `${t.border}44`,
+                            }}
+                          >
+                            {levelLabel}
+                          </span>
+                        )}
+                      </div>
+                      {item.desc && (
+                        <p className="text-xs mt-1.5 line-clamp-2 leading-relaxed" style={{ color: t.textMuted }}>
+                          {item.desc}
+                        </p>
+                      )}
+                    </div>
+                    {!isDemo && <PromoteToL4Button item={item} />}
+                  </div>
                 </SbCard>
               </li>
-            ))}
+            );
+            })}
           </ul>
         )}
       </SbSection>

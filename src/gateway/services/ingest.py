@@ -10,6 +10,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from ..state import EngineStateManager
 from ..utils.text import decode_upload_bytes, extract_keywords
+from .memory.protection import infer_memory_level_from_ingest, stamp_block_protection
+from .memory.project import attach_project_scope, normalize_active_project
 
 FAST_TEXT_EXTENSIONS = frozenset({"txt", "md", "markdown"})
 
@@ -150,14 +152,18 @@ class DocumentIngestService:
                 snippet = content[: self.MEMORY_SNIPPET_CHARS]
                 keywords = extract_keywords(content, 6)
                 mem_id = f"mem-{batch_id}-{idx}"
+                memory_level = infer_memory_level_from_ingest(filename, content)
                 pending_blocks.append(
-                    {
-                        "label": layer,
-                        "block_id": mem_id,
-                        "data": {"filename": filename, "content": snippet, "keywords": keywords},
-                        "importance": importance,
-                        "timestamp": base_ts + idx * 0.001,
-                    }
+                    stamp_block_protection(
+                        {
+                            "label": layer,
+                            "block_id": mem_id,
+                            "data": {"filename": filename, "content": snippet, "keywords": keywords},
+                            "importance": importance,
+                            "timestamp": base_ts + idx * 0.001,
+                        },
+                        memory_level,
+                    )
                 )
                 preview = content[: self.PREVIEW_CHARS] if content else filename
                 indexed.append(
@@ -384,14 +390,18 @@ class DocumentIngestService:
             snippet = content[: self.MEMORY_SNIPPET_CHARS]
             keywords = extract_keywords(content, 6)
             mem_id = f"mem-{batch_id}-{idx}"
+            memory_level = infer_memory_level_from_ingest(filename, content)
             pending_blocks.append(
-                {
-                    "label": layer,
-                    "block_id": mem_id,
-                    "data": {"filename": filename, "content": snippet, "keywords": keywords},
-                    "importance": importance,
-                    "timestamp": base_ts + idx * 0.001,
-                }
+                stamp_block_protection(
+                    {
+                        "label": layer,
+                        "block_id": mem_id,
+                        "data": {"filename": filename, "content": snippet, "keywords": keywords},
+                        "importance": importance,
+                        "timestamp": base_ts + idx * 0.001,
+                    },
+                    memory_level,
+                )
             )
             preview = content[: self.PREVIEW_CHARS] if content else filename
             indexed.append(
@@ -488,6 +498,7 @@ class DocumentIngestService:
             layer=layer,
             importance=importance,
             keyword_limit=6,
+            memory_level=str(infer_memory_level_from_ingest(filename, content)),
         )
 
         upload_rows = [
@@ -528,25 +539,45 @@ class DocumentIngestService:
         layer: str,
         importance: float,
         keyword_limit: int,
+        memory_level: str = "long_term",
     ) -> List[str]:
         keywords = extract_keywords(content, keyword_limit)
+        active = self._state.mutate(lambda engine: normalize_active_project(engine.get("active_project")))
+        project_id = str(active.get("project_id") or "default")
+        lifecycle_id = str(active.get("lifecycle_id") or "")
 
         def apply(store) -> List[str]:
-            store.add({
-                "label": layer,
-                "block_id": mem_id,
-                "data": {"filename": filename, "content": content, "keywords": keywords},
-                "importance": importance,
-                "timestamp": time.time(),
-            })
+            main_block = attach_project_scope(
+                stamp_block_protection(
+                    {
+                        "label": layer,
+                        "block_id": mem_id,
+                        "data": {"filename": filename, "content": content, "keywords": keywords},
+                        "importance": importance,
+                        "timestamp": time.time(),
+                    },
+                    memory_level,
+                ),
+                project_id=project_id,
+                lifecycle_id=lifecycle_id,
+            )
+            store.add(main_block)
             for kw in keywords[:4]:
-                store.add({
-                    "label": layer,
-                    "block_id": f"kw-{mem_id}-{kw}",
-                    "data": {"content": kw, "filename": filename, "keywords": [kw]},
-                    "importance": 0.45,
-                    "timestamp": time.time(),
-                })
+                kw_block = attach_project_scope(
+                    stamp_block_protection(
+                        {
+                            "label": layer,
+                            "block_id": f"kw-{mem_id}-{kw}",
+                            "data": {"content": kw, "filename": filename, "keywords": [kw]},
+                            "importance": 0.45,
+                            "timestamp": time.time(),
+                        },
+                        memory_level,
+                    ),
+                    project_id=project_id,
+                    lifecycle_id=lifecycle_id,
+                )
+                store.add(kw_block)
             return keywords
 
         return self._state.mutate_memory_store(apply)

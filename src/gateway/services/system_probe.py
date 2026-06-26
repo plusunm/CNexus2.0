@@ -68,3 +68,39 @@ class SystemProbeService:
 
         total = self._state.mutate(_count)
         return {"total": total, "by_layer": {"episodic": total}, "avg_importance": 0.6}
+
+    def memory_foundation_versions(self, constitution_key: str | None = None) -> Dict[str, Any]:
+        try:
+            from .memory_foundation import list_foundation_versions
+        except ImportError:
+            from cnexus_gateway.services.memory_foundation import list_foundation_versions
+
+        def read(engine):
+            return list_foundation_versions(list(engine["memory_store"].blocks), constitution_key=constitution_key)
+
+        versions = self._state.mutate(read)
+        active = [row for row in versions if row.get("active")]
+        return {"ok": True, "versions": versions, "active_count": len(active), "total": len(versions)}
+
+    def runtime_boot_status(self) -> Dict[str, Any]:
+        def read(engine: Dict[str, Any]) -> Dict[str, Any]:
+            rt = engine.get("runtime") or {}
+            status = dict(rt.get("status") or {})
+            if status:
+                status.setdefault("ok", True)
+                return status
+            return {"ok": False, "boot_phase": "boot", "error": "runtime_not_loaded"}
+
+        return self._state.mutate(read)
+
+    def memory_foundation_tree(self, constitution_key: str | None = None) -> Dict[str, Any]:
+        try:
+            from .memory_foundation import foundation_version_tree
+        except ImportError:
+            from cnexus_gateway.services.memory_foundation import foundation_version_tree
+
+        def read(engine):
+            return foundation_version_tree(list(engine["memory_store"].blocks), constitution_key=constitution_key)
+
+        trees = self._state.mutate(read)
+        return {"ok": True, "trees": trees, "count": len(trees)}

@@ -115,6 +115,15 @@ class RemSleepEngine:
         data = block.get("data") or {}
         if data.get("archived"):
             return True
+        try:
+            from gateway.services.memory.protection import is_prune_protected
+        except ImportError:
+            try:
+                from cnexus_gateway.services.memory.protection import is_prune_protected
+            except ImportError:
+                is_prune_protected = None  # type: ignore[assignment]
+        if is_prune_protected and is_prune_protected(block):
+            return True
         return False
 
     # ── Trigger policy ──────────────────────────────────────────────────

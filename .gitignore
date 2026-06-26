@@ -16,6 +16,8 @@ out/
 frontend/node_modules/
 frontend/.next/
 frontend/out/
+frontend/out.old*/
+frontend/tsconfig.tsbuildinfo
 frontend/src-tauri/target/
 frontend/src-tauri/cnexus-runtime-x86_64-pc-windows-msvc.exe
 
@@ -42,7 +44,8 @@ current_js.txt
 cnexus_next_css.txt
 new_float.html
 new_shell.html
-memory/
+# Local dev scratch (not part of the clean personal edition) — repo root only
+/memory/
 
 # Legacy / dev-only (excluded from personal edition)
 app_ui.py

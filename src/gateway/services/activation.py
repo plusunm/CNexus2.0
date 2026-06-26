@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 from ..state import EngineStateManager
+from .memory.project import normalize_active_project, spec_visible_for_active_project
+from .memory.protection import block_memory_level, level_priority
 from .memory.scope import normalize_memory_scope, origin_matches_scope
 
 CollectNodeSpecsFn = Callable[[], List[Dict[str, Any]]]
@@ -42,9 +44,17 @@ class ActivationService:
 
         self._state.mutate(apply)
 
+    def _active_project(self) -> Dict[str, Any]:
+        return self._state.mutate(lambda engine: normalize_active_project(engine.get("active_project")))
+
     def overview_items(self) -> List[Dict[str, Any]]:
         """Memory node specs with activation scores for L0 mind overview."""
-        specs = self._hooks.collect_node_specs()
+        active = self._active_project()
+        specs = [
+            spec
+            for spec in self._hooks.collect_node_specs()
+            if spec_visible_for_active_project(spec, active)
+        ]
         self.sync_nodes(specs)
         scores = self._read_scores()
         cutoff = self._default_threshold
@@ -83,7 +93,12 @@ class ActivationService:
         cutoff = float(threshold if threshold is not None else self._default_threshold)
         scope = normalize_memory_scope(memory_scope)
         trusted = set(trusted_peers or [])
-        specs = self._hooks.collect_node_specs()
+        active = self._active_project()
+        specs = [
+            spec
+            for spec in self._hooks.collect_node_specs()
+            if spec_visible_for_active_project(spec, active)
+        ]
         if scope != "network":
             specs = [
                 spec
@@ -93,9 +108,15 @@ class ActivationService:
         self.sync_nodes(specs)
         scores = self._read_scores()
         candidates: List[ActivationHit] = []
+        protected: List[ActivationHit] = []
         for spec in specs:
             score = float(scores.get(spec["id"], 0.0))
-            if score > cutoff:
+            memory_level = str(spec.get("memory_level") or "long_term")
+            if level_priority(memory_level) >= level_priority("project"):
+                protected.append((1.0 + float(level_priority(memory_level)), spec))
+            elif score > cutoff:
                 candidates.append((score, spec))
+        protected.sort(key=lambda item: (-item[0], str(item[1].get("id") or "")))
         candidates.sort(key=lambda item: -item[0])
-        return candidates[:limit]
+        merged = protected + candidates
+        return merged[:limit]

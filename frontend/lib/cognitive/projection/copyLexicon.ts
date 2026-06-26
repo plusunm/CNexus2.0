@@ -109,16 +109,16 @@ export const cognitiveCopy = {
   ),
   clearMemoryConfirm: copy(
     {
-      en: "Clear all memories and chat history? Model settings will be kept.",
-      zh: "确定清空全部记忆与对话记录？模型配置将保留。",
+      en: "Clear conversation and non-protected memories? Runtime Constitution is unaffected.",
+      zh: "确定清空对话与非保护记忆？Runtime 认知宪法不受影响。",
     },
     {
-      en: "Clear all memory blocks, graph nodes, and chat history? Model settings will be kept.",
-      zh: "确定清空全部记忆、图谱节点与对话记录？模型配置将保留。",
+      en: "Clear memory blocks, graph nodes, and chat history? Foundation / constitution memories are preserved.",
+      zh: "确定清空记忆、图谱节点与对话记录？认知宪法与系统基石记忆将保留。",
     },
     {
-      en: "Clear all memory blocks, graph nodes, and chat history? Model settings will be kept.",
-      zh: "确定清空全部记忆、图谱节点与对话记录？模型配置将保留。",
+      en: "Clear memory blocks, graph nodes, and chat history? Foundation / constitution memories are preserved.",
+      zh: "确定清空记忆、图谱节点与对话记录？认知宪法与系统基石记忆将保留。",
     },
   ),
   clearMemoryBusy: copy(

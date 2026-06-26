@@ -518,6 +518,8 @@ export function statusToMindOverview(
       node_type: item.node_type,
       source_peer: item.source_peer,
       memory_origin: item.memory_origin,
+      memory_level: item.memory_level,
+      memory_version: item.memory_version,
     }));
   }
   if (statusResponse.wormhole_links && statusResponse.wormhole_links.length > 0) {

@@ -1138,29 +1138,166 @@ export const cnexusProductApi = {
     }
   },
   v2ClearMemory: async (keepModels = true) => {
-    const resp = await fetch(`${getApiBase()}/api/memory/clear`, {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 30_000);
+    try {
+      const resp = await fetch(`${getApiBase()}/api/memory/clear`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keep_models: keepModels }),
+        signal: controller.signal,
+      });
+      const data = (await resp.json().catch(() => ({}))) as {
+        ok?: boolean;
+        cleared?: boolean;
+        keep_models?: boolean;
+        error?: string;
+        detail?: string;
+        message?: string;
+      };
+      if (!resp.ok || data.ok === false) {
+        throw new Error(
+          data.error || data.detail || data.message || formatRequestError(data, resp.status, resp.statusText),
+        );
+      }
+      return {
+        ok: Boolean(data.ok ?? data.cleared),
+        cleared: Boolean(data.cleared),
+        keep_models: data.keep_models ?? keepModels,
+      };
+    } finally {
+      window.clearTimeout(timer);
+    }
+  },
+  promoteMemory: async (blockId: string, memoryLevel: "project" | "core" | "foundation", confirm = true) => {
+    const resp = await fetch(`${getApiBase()}/v1/memory/promote`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ keep_models: keepModels }),
+      body: JSON.stringify({ block_id: blockId, memory_level: memoryLevel, confirm }),
     });
     const data = (await resp.json().catch(() => ({}))) as {
       ok?: boolean;
-      cleared?: boolean;
-      keep_models?: boolean;
       error?: string;
-      detail?: string;
       message?: string;
+      memory_level?: string;
     };
     if (!resp.ok || data.ok === false) {
-      throw new Error(
-        data.error || data.detail || data.message || formatRequestError(data, resp.status, resp.statusText),
-      );
+      throw new Error(data.message || data.error || resp.statusText || "Promote failed");
     }
-    return {
-      ok: Boolean(data.ok ?? data.cleared),
-      cleared: Boolean(data.cleared),
-      keep_models: data.keep_models ?? keepModels,
+    return data;
+  },
+  upgradeFoundation: async (blockId: string, content: string) => {
+    const resp = await fetch(`${getApiBase()}/v1/memory/foundation/upgrade`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ block_id: blockId, content }),
+    });
+    const data = (await resp.json().catch(() => ({}))) as {
+      ok?: boolean;
+      error?: string;
+      block_id?: string;
+      memory_version?: number;
     };
+    if (!resp.ok || data.ok === false) {
+      throw new Error(data.error || resp.statusText || "Foundation upgrade failed");
+    }
+    return data;
+  },
+  foundationVersions: async (constitutionKey?: string) => {
+    const qs = constitutionKey ? `?constitution_key=${encodeURIComponent(constitutionKey)}` : "";
+    const resp = await fetch(`${getApiBase()}/v1/memory/foundation/versions${qs}`, { cache: "no-store" });
+    const data = (await resp.json().catch(() => ({}))) as {
+      ok?: boolean;
+      versions?: Array<Record<string, unknown>>;
+      error?: string;
+    };
+    if (!resp.ok || data.ok === false) {
+      throw new Error(data.error || resp.statusText || "Failed to load foundation versions");
+    }
+    return data;
+  },
+  foundationVersionTree: async (constitutionKey?: string) => {
+    const qs = constitutionKey ? `?constitution_key=${encodeURIComponent(constitutionKey)}` : "";
+    const resp = await fetch(`${getApiBase()}/v1/memory/foundation/tree${qs}`, { cache: "no-store" });
+    const data = (await resp.json().catch(() => ({}))) as {
+      ok?: boolean;
+      trees?: Array<Record<string, unknown>>;
+      error?: string;
+    };
+    if (!resp.ok || data.ok === false) {
+      throw new Error(data.error || resp.statusText || "Failed to load foundation tree");
+    }
+    return data;
+  },
+  runtimeBootStatus: async () => {
+    const resp = await fetch(`${getApiBase()}/v1/runtime/boot`, { cache: "no-store" });
+    const data = (await resp.json().catch(() => ({}))) as {
+      ok?: boolean;
+      boot_phase?: string;
+      signature_verified?: boolean;
+      ed25519_signed?: boolean;
+      constitution_docs?: number;
+      policy_docs?: number;
+      error?: string;
+    };
+    if (!resp.ok) {
+      throw new Error(data.error || resp.statusText || "Runtime boot status failed");
+    }
+    return data;
+  },
+  projectActive: async () => {
+    const resp = await fetch(`${getApiBase()}/v1/project/active`, { cache: "no-store" });
+    const data = (await resp.json().catch(() => ({}))) as {
+      ok?: boolean;
+      active_project?: Record<string, unknown>;
+      error?: string;
+    };
+    if (!resp.ok || data.ok === false) {
+      throw new Error(data.error || resp.statusText || "Failed to load active project");
+    }
+    return data;
+  },
+  setProjectActive: async (body: {
+    project_id: string;
+    lock?: boolean;
+    lifecycle_id?: string;
+    name?: string;
+  }) => {
+    const resp = await fetch(`${getApiBase()}/v1/project/active`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = (await resp.json().catch(() => ({}))) as {
+      ok?: boolean;
+      active_project?: Record<string, unknown>;
+      error?: string;
+    };
+    if (!resp.ok || data.ok === false) {
+      throw new Error(data.error || resp.statusText || "Failed to set active project");
+    }
+    return data;
+  },
+  listProjects: async () => {
+    const resp = await fetch(`${getApiBase()}/v1/project/list`, { cache: "no-store" });
+    const data = (await resp.json().catch(() => ({}))) as {
+      ok?: boolean;
+      projects?: Array<Record<string, unknown>>;
+      active_project?: Record<string, unknown>;
+      error?: string;
+    };
+    if (!resp.ok || data.ok === false) {
+      throw new Error(data.error || resp.statusText || "Failed to list projects");
+    }
+    return data;
+  },
+  clearConversationScratch: async () => {
+    const resp = await fetch(`${getApiBase()}/v1/conversation/scratch/clear`, { method: "POST" });
+    const data = (await resp.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+    if (!resp.ok || data.ok === false) {
+      throw new Error(data.error || resp.statusText || "Failed to clear scratch");
+    }
+    return data;
   },
   fetchDashboardStatus: async (): Promise<DashboardStatus> => {
     const resp = await fetch(`${getApiBase()}/api/dashboard/status`, { cache: "no-store" });

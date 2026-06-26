@@ -63,6 +63,8 @@ class PipelineDeps:
     resolve_model: Callable[[Optional[str]], Any]
     threshold_activated_fragments: Callable[..., list]
     format_activation_context: Callable[..., str]
+    compose_llm_context: Callable[[str], str]
+    runtime_context: Callable[[], str]
     memory_recall: Callable[[str, str], Dict[str, Any]]
     negotiation_conflict_context: Callable[[], Optional[str]]
     record_emergent_block_refs: Callable[[], None]
@@ -115,6 +117,7 @@ class CognitivePipeline:
             dec = deps.decide(ctx, st)
             activation_hits: list = []
             activation_context = ""
+            runtime_context = deps.runtime_context()
             if light_prepare:
                 pass
             elif profile.get("inject_memory"):
@@ -152,6 +155,7 @@ class CognitivePipeline:
                             if activation_context
                             else neg_ctx
                         )
+            llm_context = deps.compose_llm_context(activation_context)
             return {
                 "input_text": input_text,
                 "trace_id": trace_id,
@@ -163,6 +167,8 @@ class CognitivePipeline:
                 "model_row": model_row,
                 "activation_hits": activation_hits,
                 "activation_context": activation_context if profile.get("inject_memory") and not light_prepare else "",
+                "llm_context": llm_context,
+                "runtime_context": runtime_context,
                 "mode_profile": profile,
                 "thinking_mode": profile.get("thinking_mode", "precision"),
             }
@@ -225,6 +231,7 @@ class CognitivePipeline:
         model_row = prep["model_row"]
         dec, ctx, st = prep["dec"], prep["ctx"], prep["st"]
         activation_context = prep["activation_context"]
+        llm_context = prep.get("llm_context") or self._deps.compose_llm_context(activation_context)
         token_source = "estimated"
         token_mode = "fast"
         llm_usage = None
@@ -250,7 +257,7 @@ class CognitivePipeline:
                 llm_stream = self._deps.iter_external_llm_stream(
                     model_row,
                     input_text,
-                    activation_context or None,
+                    llm_context or None,
                     mode_profile=profile,
                 )
                 try:
@@ -422,6 +429,7 @@ class CognitivePipeline:
         model_row = prep["model_row"]
         activation_hits = prep["activation_hits"]
         activation_context = prep["activation_context"]
+        llm_context = prep.get("llm_context") or self._deps.compose_llm_context(activation_context)
         trace_id = prep["trace_id"]
         token_source = "estimated"
         token_mode = "fast"
@@ -434,7 +442,7 @@ class CognitivePipeline:
                 llm_usage = self._deps.invoke_external_llm(
                     model_row,
                     input_text,
-                    activation_context or None,
+                    llm_context or None,
                     mode_profile=profile,
                 )
                 spk = {

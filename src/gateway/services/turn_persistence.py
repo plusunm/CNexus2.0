@@ -19,6 +19,7 @@ RecordCycleGtbsFn = Callable[[int, str, str, Any, Any, Any], None]
 ScheduleActivationFn = Callable[[str, str, str], None]
 RecordTokenTraceFn = Callable[..., None]
 SchedulePersistFn = Callable[[], None]
+AppendScratchFn = Callable[[str, str, str, str], Dict[str, Any]]
 
 
 @dataclass(frozen=True)
@@ -30,6 +31,7 @@ class TurnPersistenceHooks:
     schedule_activation_post_turn: ScheduleActivationFn
     record_token_trace: RecordTokenTraceFn
     schedule_persist: SchedulePersistFn
+    append_scratch_turn: AppendScratchFn = lambda *_a, **_k: {"ok": False}
 
 
 class TurnPersistenceService:
@@ -94,6 +96,12 @@ class TurnPersistenceService:
                 sto,
             )
             reply = self.reply_text(package)
+            hooks.append_scratch_turn(
+                "",
+                package.input_text,
+                reply,
+                package.trace_id,
+            )
             hooks.schedule_activation_post_turn(package.input_text, reply, package.trace_id)
             if package.llm_usage:
                 hooks.record_token_trace(

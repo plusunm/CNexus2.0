@@ -106,93 +106,99 @@ export function HomeSidebar({ onRefresh, loading, activeView }: Props) {
 
   return (
     <aside
-      className="hidden lg:flex w-[220px] shrink-0 flex-col border-r px-4 py-5 gap-5 overflow-y-auto max-h-screen"
+      className="hidden lg:flex w-[220px] shrink-0 flex-col h-dvh max-h-dvh overflow-hidden border-r"
       style={{ borderColor: t.border, backgroundColor: t.surface }}
+      data-cnexus-home-sidebar
     >
-      <div className="flex items-center gap-3">
-        <CnexusAvatarIcon size={40} rounded="xl" />
-        <div>
-          <p className="text-sm font-semibold" style={{ color: t.text }}>
-            CNexus
+      <div className="px-4 pt-5 pb-4 border-b shrink-0" style={{ borderColor: t.border }}>
+        <div className="flex items-center gap-3">
+          <CnexusAvatarIcon size={40} rounded="xl" />
+          <div className="min-w-0">
+            <p className="text-sm font-semibold truncate" style={{ color: t.text }}>
+              CNexus
+            </p>
+            <p className="text-[11px] truncate" style={{ color: t.textMuted }}>
+              {projectLabel(navL.runtimeReader, projection)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-4 py-3 shrink-0">
+        <div className="rounded-xl p-3 border" style={{ borderColor: t.border, backgroundColor: t.chatBg }}>
+          <div className="flex items-center gap-1.5 min-w-0 mb-2 overflow-hidden">
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: statusColor }} />
+            <span className="text-xs font-medium shrink-0" style={{ color: t.text }}>
+              {statusText}
+            </span>
+            {!isPersonalMode() && (
+              <>
+                <span className="text-[10px] shrink-0" style={{ color: t.textLight }}>
+                  ·
+                </span>
+                <OllamaConnectionBadge inline />
+              </>
+            )}
+          </div>
+          <p className="text-[11px] leading-relaxed" style={{ color: t.textMuted }}>
+            {projectLabel(navL.systemHealth, projection)}:{" "}
+            {isWarming ? runtimeStatus.label : overview.system.health_label}
           </p>
-          <p className="text-[11px]" style={{ color: t.textMuted }}>
-            {projectLabel(navL.runtimeReader, projection)}
+        </div>
+      </div>
+
+      <div className="flex-1 min-h-0 overflow-y-auto cnexus-float-scroll [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden px-4">
+        <div className="space-y-2 pb-2">
+          <p className="text-[10px] uppercase tracking-wider" style={{ color: t.textLight }}>
+            {projectLabel(navL.views, projection)}
           </p>
+          <div className="space-y-1">
+            {MAIN_VIEW_DEFS.map((def) => (
+              <NavLink key={def.id} {...def} activeView={activeView} projection={projection} t={t} />
+            ))}
+          </div>
         </div>
-      </div>
 
-      <div className="rounded-xl p-3 border" style={{ borderColor: t.border, backgroundColor: t.chatBg }}>
-        <div className="flex items-center gap-1.5 min-w-0 mb-2 overflow-hidden">
-          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: statusColor }} />
-          <span className="text-xs font-medium shrink-0" style={{ color: t.text }}>
-            {statusText}
-          </span>
-          {!isPersonalMode() && (
-            <>
-              <span className="text-[10px] shrink-0" style={{ color: t.textLight }}>
-                ·
-              </span>
-              <OllamaConnectionBadge inline />
-            </>
-          )}
+        <div className="space-y-2 pb-2">
+          <p className="text-[10px] uppercase tracking-wider" style={{ color: t.textLight }}>
+            {projectLabel(navL.networkSection, projection)}
+          </p>
+          <div className="space-y-1">
+            {NETWORK_VIEW_DEFS.map((def) => (
+              <NavLink key={def.id} {...def} activeView={activeView} projection={projection} t={t} />
+            ))}
+          </div>
         </div>
-        <p className="text-[11px] leading-relaxed mb-3" style={{ color: t.textMuted }}>
-          {projectLabel(navL.systemHealth, projection)}:{" "}
-          {isWarming ? runtimeStatus.label : overview.system.health_label}
-        </p>
-        <ExperienceTierSwitch />
-      </div>
 
-      <div className="space-y-2">
-        <p className="text-[10px] uppercase tracking-wider" style={{ color: t.textLight }}>
-          {projectLabel(navL.views, projection)}
-        </p>
-        <div className="space-y-1">
-          {MAIN_VIEW_DEFS.map((def) => (
-            <NavLink key={def.id} {...def} activeView={activeView} projection={projection} t={t} />
-          ))}
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <p className="text-[10px] uppercase tracking-wider" style={{ color: t.textLight }}>
-          {projectLabel(navL.networkSection, projection)}
-        </p>
-        <div className="space-y-1">
-          {NETWORK_VIEW_DEFS.map((def) => (
-            <NavLink key={def.id} {...def} activeView={activeView} projection={projection} t={t} />
-          ))}
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <p className="text-[10px] uppercase tracking-wider" style={{ color: t.textLight }}>
-          {projectLabel(navL.quickActions, projection)}
-        </p>
-        <button
-          type="button"
-          onClick={onRefresh}
-          disabled={loading}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium disabled:opacity-50"
-          style={{ backgroundColor: t.blue, color: "#fff" }}
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-          {bi(navL.refresh)}
-        </button>
-        <ClearMemoryButton compact />
-        {!isPersonalMode() && (
+        <div className="space-y-2 pb-3">
+          <p className="text-[10px] uppercase tracking-wider" style={{ color: t.textLight }}>
+            {projectLabel(navL.quickActions, projection)}
+          </p>
           <button
             type="button"
-            onClick={disconnect}
-            className="w-full py-2 rounded-lg text-xs border"
-            style={{ borderColor: t.border, color: t.textMuted }}
+            onClick={onRefresh}
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium disabled:opacity-50"
+            style={{ backgroundColor: t.blue, color: "#fff" }}
           >
-            {bi(navL.switchDataSource)}
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            {bi(navL.refresh)}
           </button>
-        )}
+          <ClearMemoryButton compact />
+          {!isPersonalMode() && (
+            <button
+              type="button"
+              onClick={disconnect}
+              className="w-full py-2 rounded-lg text-xs border"
+              style={{ borderColor: t.border, color: t.textMuted }}
+            >
+              {bi(navL.switchDataSource)}
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="mt-auto space-y-3">
+      <div className="px-3 py-3 space-y-2 border-t shrink-0" style={{ borderColor: t.border }}>
         <div className="flex items-start gap-2 text-[11px]" style={{ color: t.textLight }}>
           <Sparkles className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "#5eead4" }} />
           <span>
@@ -215,6 +221,7 @@ export function HomeSidebar({ onRefresh, loading, activeView }: Props) {
                             : projectLabel(navL.learnHint, projection)}
           </span>
         </div>
+        <ExperienceTierSwitch compact showHint />
         <LanguageProjectionSwitch compact />
         <MindModeSwitch compact />
       </div>

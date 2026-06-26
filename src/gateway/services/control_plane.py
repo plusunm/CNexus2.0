@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from .conflict_control import ConflictControlService
 from .consensus_control import ConsensusControlService
@@ -45,6 +45,33 @@ class ControlPlaneService:
         if isinstance(keep_models, str):
             keep_models = keep_models.lower() not in ("0", "false", "no")
         return self._memory.clear(keep_models=bool(keep_models))
+
+    def memory_promote(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        return self._memory.promote(data)
+
+    def memory_foundation_upgrade(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        return self._memory.foundation_upgrade(data)
+
+    def memory_foundation_versions(self, constitution_key: Optional[str] = None) -> Dict[str, Any]:
+        return self._memory.foundation_versions(constitution_key=constitution_key)
+
+    def memory_foundation_tree(self, constitution_key: Optional[str] = None) -> Dict[str, Any]:
+        return self._memory.foundation_version_tree(constitution_key=constitution_key)
+
+    def memory_constitution_bootstrap(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        force = data.get("force", False)
+        if isinstance(force, str):
+            force = force.lower() in ("1", "true", "yes")
+        return self._memory.bootstrap_constitution(force=bool(force))
+
+    def runtime_recompile(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        force = data.get("force", False)
+        if isinstance(force, str):
+            force = force.lower() in ("1", "true", "yes")
+        return self._memory.bootstrap_constitution(force=bool(force))
+
+    def runtime_boot_status(self) -> Dict[str, Any]:
+        return self._memory.runtime_status()
 
     def rem_sleep(self, data: Dict[str, Any]) -> Dict[str, Any]:
         return self._rem.run(data)

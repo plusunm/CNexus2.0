@@ -374,13 +374,18 @@ def _bootstrap_gateway_modules():
         f"{pkg}.services.gateway_intent",
         f"{pkg}.services",
     )
+    project_control_mod = _load(
+        os.path.join("services", "project_control.py"),
+        f"{pkg}.services.project_control",
+        f"{pkg}.services",
+    )
     auth_gate_mod = _load(
         os.path.join("http", "auth_gate.py"),
         f"{pkg}.http.auth_gate",
         f"{pkg}.http",
     )
     multipart_mod = _load(os.path.join("utils", "multipart.py"), f"{pkg}.utils.multipart", f"{pkg}.utils")
-    return state_mod, svc_mod, routes_mod, ingest_mod, ingest_routes_mod, converse_mod, converse_events_mod, converse_routes_mod, llm_mod, converse_thinking_mod, converse_speech_mod, converse_config_mod, activation_mod, audit_emitter_mod, turn_persistence_mod, memory_domain_mod, memory_wormhole_embed_mod, memory_graph_mod, memory_rem_synthesis_mod, memory_rem_mod, memory_asset_mod, memory_recall_mod, negotiation_mod, converse_audit_mod, v2_handler_mod, memory_nodes_mod, system_probe_mod, status_snapshot_mod, status_subsystems_mod, dashboard_status_mod, peers_status_mod, network_status_mod, resilience_status_mod, identity_status_mod, audit_chain_status_mod, api_auth_status_mod, consensus_status_mod, assets_status_mod, shadow_projection_mod, conflict_control_mod, pruning_control_mod, consensus_control_mod, consolidation_status_mod, replay_status_mod, awakening_status_mod, pruning_status_mod, entropy_status_mod, persistence_status_mod, negotiation_conflict_status_mod, reflection_status_mod, conflict_resolution_status_mod, status_bootstrap_mod, projection_register_mod, projection_ingest_mod, memory_control_mod, replay_control_mod, reflection_control_mod, rem_control_mod, peer_mesh_mod, asset_gateway_mod, asset_route_bootstrap_mod, system_status_routes_mod, asset_routes_mod, peer_routes_mod, control_plane_mod, control_bootstrap_mod, control_routes_mod, static_routes_mod, gateway_intent_mod, auth_gate_mod, multipart_mod, routes_registry_mod
+    return state_mod, svc_mod, routes_mod, ingest_mod, ingest_routes_mod, converse_mod, converse_events_mod, converse_routes_mod, llm_mod, converse_thinking_mod, converse_speech_mod, converse_config_mod, activation_mod, audit_emitter_mod, turn_persistence_mod, memory_domain_mod, memory_wormhole_embed_mod, memory_graph_mod, memory_rem_synthesis_mod, memory_rem_mod, memory_asset_mod, memory_recall_mod, negotiation_mod, converse_audit_mod, v2_handler_mod, memory_nodes_mod, system_probe_mod, status_snapshot_mod, status_subsystems_mod, dashboard_status_mod, peers_status_mod, network_status_mod, resilience_status_mod, identity_status_mod, audit_chain_status_mod, api_auth_status_mod, consensus_status_mod, assets_status_mod, shadow_projection_mod, conflict_control_mod, pruning_control_mod, consensus_control_mod, consolidation_status_mod, replay_status_mod, awakening_status_mod, pruning_status_mod, entropy_status_mod, persistence_status_mod, negotiation_conflict_status_mod, reflection_status_mod, conflict_resolution_status_mod, status_bootstrap_mod, projection_register_mod, projection_ingest_mod, memory_control_mod, replay_control_mod, reflection_control_mod, rem_control_mod, peer_mesh_mod, asset_gateway_mod, asset_route_bootstrap_mod, system_status_routes_mod, asset_routes_mod, peer_routes_mod, control_plane_mod, control_bootstrap_mod, control_routes_mod, static_routes_mod, gateway_intent_mod, project_control_mod, auth_gate_mod, multipart_mod, routes_registry_mod
 
 def _load_kernel_module(name, fname):
     import importlib.util as u
@@ -477,6 +482,20 @@ _engine_state = {
         "nodes": {},
         "links": [],
     },
+    "active_project": {
+        "project_id": "default",
+        "name": "Default Project",
+        "lifecycle_id": "",
+        "locked": False,
+        "locked_at": 0.0,
+        "lock_session_id": "",
+    },
+    "conversation_scratch": {
+        "session_id": "",
+        "items": [],
+        "updated_at": 0.0,
+        "expires_at": 0.0,
+    },
 }
 
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "127.0.0.1:11434")
@@ -551,6 +570,7 @@ OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "127.0.0.1:11434")
     _gw_control_routes_mod,
     _gw_static_routes_mod,
     _gw_gateway_intent_mod,
+    _gw_project_control_mod,
     _gw_auth_gate_mod,
     _gw_multipart_mod,
     _gw_routes_registry_mod,
@@ -678,6 +698,8 @@ build_control_services = _gw_control_bootstrap_mod.build_control_services
 ControlBootstrapHooks = _gw_control_bootstrap_mod.ControlBootstrapHooks
 StaticRouteHandler = _gw_static_routes_mod.StaticRouteHandler
 GatewayIntentService = _gw_gateway_intent_mod.GatewayIntentService
+ProjectControlService = _gw_project_control_mod.ProjectControlService
+ProjectControlHooks = _gw_project_control_mod.ProjectControlHooks
 _pipeline_mod = _load_kernel_module("kernel.pipeline", "pipeline.py")
 PipelineDeps = _pipeline_mod.PipelineDeps
 CognitivePipeline = _pipeline_mod.CognitivePipeline
@@ -722,6 +744,7 @@ _consensus_control_service = None
 _projection_register_service = None
 _projection_ingest_service = None
 _memory_control_service = None
+_project_control_service = None
 _replay_control_service = None
 _reflection_control_service = None
 _rem_control_service = None
@@ -782,6 +805,55 @@ _clip_embedder = None
 
 # ── Local JSON persistence (personal memory snapshot) ──
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_RUNTIME_DATA_DIR = os.path.join(
+    os.environ.get("CNEXUS_DATA_DIR", os.path.join(_BASE_DIR, "data")),
+    "runtime",
+)
+_compiled_runtime = None
+
+
+def _boot_cnexus_runtime(*, force_recompile: bool = False):
+    """BOOT: Constitution → Policy (compiled, not Memory)."""
+    global _compiled_runtime
+    from runtime.bootstrap import boot_runtime
+
+    result = boot_runtime(
+        _BASE_DIR,
+        data_dir=_RUNTIME_DATA_DIR,
+        force_recompile=force_recompile,
+        identity_manager=_get_identity_manager(),
+    )
+    _compiled_runtime = result.get("compiled")
+    status = dict(result.get("status") or {})
+    system_prompt = str(result.get("system_prompt") or "")
+    _engine_state["runtime"] = {"status": status, "system_prompt": system_prompt}
+    return status
+
+
+def _runtime_context_only() -> str:
+    rt = _engine_state.get("runtime") or {}
+    return str(rt.get("system_prompt") or "")
+
+
+def _compose_llm_context(memory_context: str = "") -> str:
+    from runtime.context import build_memory_layer_preamble
+    from gateway.services.conversation_scratch import format_scratch_for_prompt, normalize_scratch, prune_scratch
+
+    runtime = _runtime_context_only().strip()
+    scratch = format_scratch_for_prompt(
+        prune_scratch(normalize_scratch(_engine_state)),
+        max_items=8,
+    ).strip()
+    mem = (memory_context or "").strip()
+    if mem:
+        mem = build_memory_layer_preamble() + "\n" + mem
+    parts = [part for part in (runtime, scratch, mem) if part]
+    return "\n\n---\n\n".join(parts)
+
+
+def _recompile_runtime(*, force: bool = False):
+    return _boot_cnexus_runtime(force_recompile=force)
+
 _PERSIST_DIR = os.environ.get("CNEXUS_DATA_DIR", os.path.join(_BASE_DIR, "data"))
 _PERSIST_FILE = os.environ.get("CNEXUS_PERSIST_FILE", os.path.join(_PERSIST_DIR, "cnexus_personal_state.json"))
 _PERSIST_VERSION = "2.0-personal-persist-v1"
@@ -2082,6 +2154,8 @@ def _serialize_engine_state():
         "runtime_logs": _to_jsonable(es.get("runtime_logs", [])[-200:]),
         "token_traces": _to_jsonable(es.get("token_traces", [])[-20:]),
         "model_registry": _to_jsonable(es.get("model_registry", {})),
+        "active_project": _to_jsonable(es.get("active_project", {})),
+        "conversation_scratch": _to_jsonable(es.get("conversation_scratch", {})),
     }
 
 
@@ -2121,16 +2195,29 @@ def _apply_persisted_state(payload):
     es["gtbs_events"] = list(payload.get("gtbs_events") or [])
     es["runtime_logs"] = list(payload.get("runtime_logs") or [])
     es["token_traces"] = list(payload.get("token_traces") or [])
+    if isinstance(payload.get("active_project"), dict):
+        from gateway.services.memory.project import normalize_active_project
+
+        es["active_project"] = normalize_active_project(payload.get("active_project"))
+    if isinstance(payload.get("conversation_scratch"), dict):
+        from gateway.services.conversation_scratch import default_scratch_state
+
+        scratch = default_scratch_state()
+        scratch.update(payload.get("conversation_scratch") or {})
+        es["conversation_scratch"] = scratch
     return True
 
 
-def _atomic_write_json(path, payload):
+def _atomic_write_json(path, payload, *, compact: bool = False):
     directory = os.path.dirname(os.path.abspath(path)) or "."
     os.makedirs(directory, exist_ok=True)
     fd, tmp_path = tempfile.mkstemp(prefix=".cnexus-", suffix=".json", dir=directory)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            json.dump(payload, handle, ensure_ascii=False, indent=2)
+            if compact:
+                json.dump(payload, handle, ensure_ascii=False, separators=(",", ":"))
+            else:
+                json.dump(payload, handle, ensure_ascii=False, indent=2)
         os.replace(tmp_path, path)
     except Exception:
         try:
@@ -2140,24 +2227,47 @@ def _atomic_write_json(path, payload):
         raise
 
 
-def _persist_engine_state():
+def _cancel_scheduled_persist():
+    global _persist_timer
+    with _persist_lock:
+        if _persist_timer is not None:
+            _persist_timer.cancel()
+            _persist_timer = None
+
+
+def _persist_engine_state(*, audit_checkpoint: bool = True):
     with _persist_lock:
         try:
             payload = _serialize_engine_state()
             path = _persist_file_path()
             _atomic_write_json(path, payload)
             _persist_meta["saved_at"] = payload["saved_at"]
-            audit = _get_audit_log()
-            if audit is not None:
-                _audit_event(
-                    "state.checkpoint",
-                    {
-                        "memory_blocks": len(_engine_state["memory_store"].blocks),
-                        "trace_count": len(_engine_state.get("trace", [])),
-                        "iteration": int(_engine_state.get("current_iteration", 0)),
-                        "audit_head": audit.last_hash,
-                    },
-                )
+            if audit_checkpoint:
+                audit = _get_audit_log()
+                if audit is not None:
+                    _audit_event(
+                        "state.checkpoint",
+                        {
+                            "memory_blocks": len(_engine_state["memory_store"].blocks),
+                            "trace_count": len(_engine_state.get("trace", [])),
+                            "iteration": int(_engine_state.get("current_iteration", 0)),
+                            "audit_head": audit.last_hash,
+                        },
+                    )
+            return True
+        except Exception as exc:
+            _append_runtime_log(f"持久化失败 · {exc}", category="control_plane", level="error")
+            return False
+
+
+def _persist_engine_state_fast():
+    """Post-clear snapshot — compact JSON, no checkpoint audit (memory.clear already logged)."""
+    with _persist_lock:
+        try:
+            payload = _serialize_engine_state()
+            path = _persist_file_path()
+            _atomic_write_json(path, payload, compact=True)
+            _persist_meta["saved_at"] = payload["saved_at"]
             return True
         except Exception as exc:
             _append_runtime_log(f"持久化失败 · {exc}", category="control_plane", level="error")
@@ -2221,7 +2331,21 @@ def _persistence_status():
     return _status_subsystems_service.persistence_status()
 
 
-def _reset_engine_memory(model_registry=None):
+def _reset_engine_memory(model_registry=None, *, preserve_constitution=True):
+    protected_blocks = []
+    if preserve_constitution:
+        try:
+            from gateway.services.memory.protection import clone_protected_block, is_clear_protected
+        except ImportError:
+            from cnexus_gateway.services.memory.protection import clone_protected_block, is_clear_protected
+        store = _engine_state.get("memory_store")
+        if store is not None:
+            protected_blocks = [
+                clone_protected_block(block)
+                for block in store.blocks
+                if is_clear_protected(block)
+            ]
+
     es = _engine_state
     es["state"] = StateSnapshot()
     es["memory_store"] = BlockStore()
@@ -2244,6 +2368,13 @@ def _reset_engine_memory(model_registry=None):
     }
     if model_registry is not None:
         es["model_registry"] = model_registry
+    if protected_blocks:
+        for block in protected_blocks:
+            es["memory_store"].add(block)
+        _append_runtime_log(
+            f"记忆清空 · 保留认知宪法 {len(protected_blocks)} 条",
+            category="control_plane",
+        )
 
 
 def _iso_ts():
@@ -2469,6 +2600,8 @@ def _init_audit_emitter_gateway():
 
 def _init_turn_persistence_gateway():
     global _turn_persistence_service
+    from gateway.services.conversation_scratch import append_scratch_turn
+
     _turn_persistence_service = TurnPersistenceService(
         _state_manager,
         TurnPersistenceHooks(
@@ -2479,6 +2612,13 @@ def _init_turn_persistence_gateway():
             schedule_activation_post_turn=_schedule_activation_post_turn,
             record_token_trace=_record_token_trace,
             schedule_persist=_schedule_persist,
+            append_scratch_turn=lambda session_id, user_text, assistant_text, trace_id="": append_scratch_turn(
+                _state_manager.mutate,
+                session_id=session_id or "",
+                user_text=user_text,
+                assistant_text=assistant_text,
+                trace_id=trace_id,
+            ),
         ),
         _audit_emitter,
     )
@@ -2520,6 +2660,8 @@ def _init_converse_gateway():
         resolve_model=_model_service.resolve_model_row_for_chat,
         threshold_activated_fragments=_threshold_activated_fragments,
         format_activation_context=_memory_context_service.format_activation_context,
+        compose_llm_context=_compose_llm_context,
+        runtime_context=_runtime_context_only,
         memory_recall=_memory_recall_scoped,
         negotiation_conflict_context=_negotiation_service.conflict_context,
         record_emergent_block_refs=_negotiation_service.record_emergent_block_refs,
@@ -3392,6 +3534,32 @@ def _init_status_gateway():
     _shadow_projection_service = bundle.shadow
 
 
+def _init_project_control_gateway():
+    global _project_control_service
+    _project_control_service = ProjectControlService(
+        ProjectControlHooks(
+            mutate_engine=_state_manager.mutate,
+            schedule_persist=_schedule_persist,
+            audit_event=_audit_event,
+        )
+    )
+    _project_control_service.ensure_default()
+
+
+def _scratch_status():
+    from gateway.services.conversation_scratch import normalize_scratch, prune_scratch, scratch_status
+
+    return _state_manager.mutate(lambda engine: scratch_status(prune_scratch(normalize_scratch(engine))))
+
+
+def _clear_conversation_scratch():
+    from gateway.services.conversation_scratch import clear_scratch
+
+    result = clear_scratch(_state_manager.mutate)
+    _schedule_persist()
+    return result
+
+
 def _init_status_routes_gateway():
     global _system_probe_service, _status_routes
     _system_probe_service = SystemProbeService(_state_manager)
@@ -3405,6 +3573,8 @@ def _init_status_routes_gateway():
         _shadow_projection_service,
         _memory_recall_service,
         _gateway_intent_service,
+        project_control=_project_control_service,
+        scratch_status_fn=_scratch_status,
     )
 
 
@@ -3438,6 +3608,13 @@ def _init_control_gateway():
                 append_runtime_log=_append_runtime_log,
                 persist_engine_state=_persist_engine_state,
                 persistence_status=_persistence_status,
+                cancel_scheduled_persist=_cancel_scheduled_persist,
+                persist_engine_state_fast=_persist_engine_state_fast,
+                mutate_memory_store=_state_manager.mutate_memory_store,
+                schedule_persist=_schedule_persist,
+                constitution_dir=lambda: os.path.join(_BASE_DIR, "runtime", "constitution"),
+                recompile_runtime=lambda force=False: _recompile_runtime(force=force),
+                get_runtime_status=lambda: dict((_engine_state.get("runtime") or {}).get("status") or {}),
             ),
             replay=ReplayControlHooks(run_log_replay=_run_log_replay),
             reflection=ReflectionControlHooks(run_self_reflection=_run_self_reflection),
@@ -3550,6 +3727,8 @@ def _init_control_routes_gateway():
         _control_plane_service,
         _status_snapshot_service,
         _gateway_intent_service,
+        project_control=_project_control_service,
+        clear_scratch=_clear_conversation_scratch,
     )
 
 
@@ -3598,6 +3777,7 @@ _init_negotiation_gateway()
 _init_audit_emitter_gateway()
 _init_converse_audit_gateway()
 _init_turn_persistence_gateway()
+_init_project_control_gateway()
 _init_converse_gateway()
 _init_gateway_intent_gateway()
 _init_status_gateway()
@@ -3626,6 +3806,26 @@ def main():
     loaded = _load_engine_state_on_boot()
     persist_path = _persist_file_path()
     _install_signed_memory_store(_engine_state["memory_store"])
+    try:
+        boot = _boot_cnexus_runtime()
+        if boot.get("ok"):
+            _append_runtime_log(
+                f"Runtime BOOT · phase={boot.get('boot_phase')} "
+                f"constitution={boot.get('constitution_docs', 0)} policy={boot.get('policy_docs', 0)}",
+                category="control_plane",
+            )
+    except Exception as exc:
+        _append_runtime_log(f"Runtime BOOT 失败 · {exc}", category="control_plane", level="warn")
+    try:
+        migrated = _memory_control_service.migrate_protected_labels()
+        if migrated.get("migrated") or migrated.get("archived_runtime"):
+            _append_runtime_log(
+                f"Memory 迁移 · foundation标签={migrated.get('migrated', 0)} "
+                f"归档Runtime残留={migrated.get('archived_runtime', 0)}",
+                category="control_plane",
+            )
+    except Exception as exc:
+        _append_runtime_log(f"Foundation 迁移失败 · {exc}", category="control_plane", level="warn")
     _maybe_replay_on_boot()
     identity = _identity_status()
     audit_state = _verify_audit_integrity()
@@ -3650,6 +3850,10 @@ def main():
     print(f'   POST /api/converse  -- json: text, converse_mode, thinking_mode (precision|emergent)')
     print(f'   POST /api/converse/stream  -- SSE token stream (text/event-stream)')
     print(f"   POST /v1/memory/rem-sleep — REM deep sleep consolidation")
+    print(f"   GET  /v1/runtime/boot — Runtime BOOT status (Constitution + Policy)")
+    print(f"   GET  /v1/project/active · POST /v1/project/active — L3 project lock")
+    print(f"   GET  /v1/conversation/scratch — L1 session scratch status")
+    print(f"   POST /v1/runtime/recompile — recompile constitution.bin from runtime/")
     print(f"   POST /api/ingest/image  — vision architecture projection")
     print(f"   POST /api/ingest/code   — AST code space projection")
     print(f"   POST /api/ingest/document — personal one-shot document upload + index")

@@ -49,6 +49,9 @@ export type MindOverviewMemoryItem = {
   /** Federated origin — empty means local-only memory */
   source_peer?: string;
   memory_origin?: "local" | "trusted" | "network";
+  /** L0–L3 protection level from backend */
+  memory_level?: "temporary" | "long_term" | "core" | "foundation" | string;
+  memory_version?: number;
 };
 
 export type MindOverviewProjectionLink = {
