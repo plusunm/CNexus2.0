@@ -37,8 +37,9 @@ def _load_modules():
     load(f"{pkg}.services.memory.provenance", os.path.join("services", "memory", "provenance.py"))
     load(f"{pkg}.services.memory.context", os.path.join("services", "memory", "context.py"))
     load(f"{pkg}.services.memory.query", os.path.join("services", "memory", "query.py"))
+    types_mod = load(f"{pkg}.services.memory.types", os.path.join("services", "memory", "types.py"))
     recall_mod = load(f"{pkg}.services.memory_recall", os.path.join("services", "memory_recall.py"))
-    return state_mod, recall_mod
+    return state_mod, recall_mod, types_mod
 
 
 class _FakeStore:
@@ -81,7 +82,7 @@ class _FakeProv:
 class MemoryRecallServiceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.state_mod, cls.recall_mod = _load_modules()
+        cls.state_mod, cls.recall_mod, cls.types_mod = _load_modules()
 
     def _service(self, engine, *, prune_active=None, pull_assets=False):
         class Prov(_FakeProv):
@@ -90,7 +91,8 @@ class MemoryRecallServiceTests(unittest.TestCase):
         prune_ids = prune_active if prune_active is not None else ["b1", "b2"]
 
         class _Assets:
-            pulled = []
+            def __init__(self):
+                self.pulled = []
 
             def blob_present(self, asset_id):
                 return False
@@ -183,7 +185,10 @@ class MemoryRecallServiceTests(unittest.TestCase):
             "trace": [],
         }
         service, assets = self._service(engine, pull_assets=True)
-        service.recall("asset")
+        service.recall(
+            "asset",
+            filters=self.types_mod.QueryFilters(scope="network"),
+        )
         self.assertEqual(assets.pulled, [("a1", "peer1")])
 
 

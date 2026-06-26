@@ -47,6 +47,11 @@ new_shell.html
 # Local dev scratch (not part of the clean personal edition) — repo root only
 /memory/
 
+# Build cache / RC reports (generated locally)
+scripts/cache/
+packaging/prebuild-rc/
+frontend/src-tauri/runtime-bundle/
+
 # Legacy / dev-only (excluded from personal edition)
 app_ui.py
 app_ui_backup.py
