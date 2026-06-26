@@ -460,7 +460,7 @@ class MemoryGraphService:
 
         memory_store = engine["memory_store"]
         blocks = memory_store.blocks
-        recent_slice = blocks[-cfg.recent_blocks :]
+        recent_start = max(0, len(blocks) - cfg.recent_blocks)
         prov_mod = self._provenance
 
         try:
@@ -474,7 +474,7 @@ class MemoryGraphService:
 
         active_project = normalize_active_project(engine.get("active_project"))
 
-        for block in blocks:
+        for idx, block in enumerate(blocks):
             if not block_visible_for_active_project(block, active_project):
                 continue
             data = block.get("data") or {}
@@ -486,7 +486,8 @@ class MemoryGraphService:
                 ("class:", "func:", "vision:")
             )
             is_protected = level_priority(memory_level) >= level_priority("project")
-            if not is_semantic and not is_projection and not is_protected and block not in recent_slice:
+            in_recent = idx >= recent_start
+            if not is_semantic and not is_projection and not is_protected and not in_recent:
                 continue
             if is_semantic:
                 title = (data.get("content") or data.get("label") or "REM fact")[:120]

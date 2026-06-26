@@ -51,8 +51,11 @@ function Test-NodeMajor($min = 20) {
 function Test-TauriCli {
     Push-Location $Frontend
     try {
-        $out = npx tauri --version 2>&1 | Select-Object -First 1
-        $ok = $LASTEXITCODE -eq 0 -or ($out -match "tauri-cli")
+        $lines = @(npx tauri --version 2>&1 | Where-Object {
+            $_ -and ($_ -notmatch '^npm warn')
+        })
+        $out = ($lines | Select-Object -Last 1)
+        $ok = ($LASTEXITCODE -eq 0) -and ($out -match 'tauri-cli')
         return @{ ok = $ok; version = [string]$out }
     } catch {
         return @{ ok = $false; version = $null }

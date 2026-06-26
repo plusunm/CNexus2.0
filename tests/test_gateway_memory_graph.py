@@ -51,7 +51,7 @@ class MemoryGraphServiceTests(unittest.TestCase):
             self.graph_mod.MemoryGraphHooks(
                 extract_keywords=lambda text, limit: [text[:3]] if text else [],
             ),
-            config=self.graph_mod.MemoryGraphConfig(wormhole_max_compare=0),
+            config=self.graph_mod.MemoryGraphConfig(wormhole_max_compare=0, recent_blocks=20),
         )
 
     def test_build_adjacency_links_parent_and_cluster(self):
@@ -78,6 +78,26 @@ class MemoryGraphServiceTests(unittest.TestCase):
         specs = [{"id": "n1", "title": "asyncio"}]
         seeds = service.match_seed_ids("discuss asyncio today", specs)
         self.assertIn("n1", seeds)
+
+    def test_collect_node_specs_with_circular_block_data(self):
+        """Regression: dict membership on blocks must not recurse on circular refs."""
+        circular: dict = {"content": "nested"}
+        circular["self"] = circular
+        blocks = [
+            {"block_id": f"b{i}", "label": "episodic", "data": {"content": f"block-{i}"}}
+            for i in range(120)
+        ]
+        blocks[-1]["data"] = circular
+        engine = {
+            "state": type("GoalState", (), {"goal": {"current": "test", "progress": 0.0}})(),
+            "memory_store": type("Store", (), {"blocks": blocks})(),
+            "trace": [],
+            "projection": {"nodes": {}, "links": []},
+        }
+        specs = self._service(engine).collect()
+        ids = {s.get("id") for s in specs}
+        self.assertIn("b100", ids)
+        self.assertTrue(any(str(i).startswith("kw-b119") for i in ids))
 
 
 if __name__ == "__main__":

@@ -46,6 +46,11 @@ $devGateway = Join-Path $Root "app_v2.py"
 if (Test-Path $sidecar) { Pass "sidecar exe present" } else { Warn "sidecar missing — will smoke-test dev gateway only" }
 if (Test-Path $bundleMain) { Pass "runtime-bundle present" } elseif (Test-Path $devGateway) { Pass "dev app_v2.py present (bundle optional for web build)" } else { Fail "no gateway to smoke-test" }
 
+$useSidecar = (Test-Path $sidecar) -and (Test-Path $bundleMain)
+if (-not $useSidecar -and (Test-Path $sidecar)) {
+    Warn "sidecar present but runtime-bundle missing — using dev app_v2.py for smoke"
+}
+
 Stop-SmokeRuntime
 Pass "port 7864 cleared before smoke"
 
@@ -60,7 +65,7 @@ $swTotal = [System.Diagnostics.Stopwatch]::StartNew()
 $lastReadyErr = $null
 
 try {
-    if (Test-Path $sidecar) {
+    if ($useSidecar) {
         $runtimeProc = Start-Process -FilePath $sidecar -PassThru -WindowStyle Hidden
         Pass "spawned cnexus-runtime pid=$($runtimeProc.Id)"
     } else {
@@ -102,7 +107,7 @@ try {
 
     try {
         $status = Invoke-RestMethod -Uri "http://127.0.0.1:7864/api/status" -TimeoutSec 3
-        if ($status.status -match "ok|ready|warming") { Pass "/api/status ok" } else { Fail "/api/status unexpected" }
+        if ($status.status -match "ok|ready|warming|online") { Pass "/api/status ok" } else { Fail "/api/status unexpected ($($status.status))" }
     } catch {
         Fail "/api/status failed after ready"
     }
