@@ -18,10 +18,9 @@ export function FloatingMemoryPanel() {
   const [scope, setScope] = useSyncMemoryScope();
   const token = useFloatTokenTraces();
 
-  const scopeChrome = 92;
   const graphFrame = {
     width: frame.graphWidth,
-    height: Math.max(120, frame.graphHeight - scopeChrome),
+    height: Math.max(72, frame.graphHeight),
   };
 
   return (
@@ -32,7 +31,7 @@ export function FloatingMemoryPanel() {
         backgroundColor: t.surface,
         borderColor: t.border,
         display: "grid",
-        gridTemplateRows: `${frame.graphSlotHeight + scopeChrome}px minmax(${frame.tokenAreaHeight}px, 1fr)`,
+        gridTemplateRows: `${frame.graphSectionHeight}px minmax(${frame.tokenAreaHeight}px, 1fr)`,
       }}
       data-cnexus-float-memory
     >
@@ -42,6 +41,7 @@ export function FloatingMemoryPanel() {
         onScopeChange={setScope}
         layoutKey={`${stage}-${sessionEpoch}-${scope}`}
         frame={graphFrame}
+        hideScopeHint
       />
 
       <div className="min-h-0 flex flex-col overflow-hidden" style={{ minHeight: frame.tokenAreaHeight }}>

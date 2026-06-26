@@ -26,6 +26,8 @@ type Props = {
   frame?: { width: number; height: number };
   graphMinHeight?: number;
   className?: string;
+  /** Float: omit scope hint line to save vertical space */
+  hideScopeHint?: boolean;
 };
 
 /** Scoped memory flow graph — classic force-directed GraphView (same as before). */
@@ -36,6 +38,7 @@ export function ScopedMemoryFlowGraph3D({
   layoutKey,
   frame,
   className = "",
+  hideScopeHint = false,
 }: Props) {
   const t = useMindTheme();
   const { t: copy } = useCognitiveCopy();
@@ -64,9 +67,14 @@ export function ScopedMemoryFlowGraph3D({
     layoutKey ?? `${scope}-${overview.generated_at}-${factorGraph.nodes.length}`;
 
   const graphBody = (
-    <div className="space-y-3 w-full min-w-0" data-cnexus-scoped-memory-flow>
-      <ChatMemoryScopeSelect value={scope} onChange={setScope} compact={variant === "float"} />
-      <div className={variant === "float" ? "w-full min-w-0 overflow-hidden" : "w-full min-w-0"}>
+    <div className="flex flex-col min-h-0 min-w-0 flex-1 gap-3 w-full" data-cnexus-scoped-memory-flow>
+      <ChatMemoryScopeSelect
+        value={scope}
+        onChange={setScope}
+        compact={variant === "float"}
+        hideActiveHint={variant === "float" && hideScopeHint}
+      />
+      <div className={variant === "float" ? "min-h-0 flex-1 min-w-0 overflow-hidden" : "w-full min-w-0"}>
         {factorGraph.nodes.length === 0 ? (
           <div
             className="flex items-center justify-center w-full px-4 py-8 rounded-xl border"
@@ -103,7 +111,7 @@ export function ScopedMemoryFlowGraph3D({
 
   if (variant === "float") {
     return (
-      <div className={className} data-no-drag>
+      <div className={`flex flex-col min-h-0 min-w-0 h-full overflow-hidden ${className}`} data-no-drag>
         <div
           className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 border-b"
           style={{ borderColor: t.border }}
@@ -119,8 +127,7 @@ export function ScopedMemoryFlowGraph3D({
         </div>
 
         <div
-          className="shrink-0 w-full min-w-0 overflow-hidden px-2 pt-2 pb-1"
-          style={frame ? { height: frame.height + 12 } : undefined}
+          className="flex flex-col min-h-0 flex-1 min-w-0 overflow-hidden px-2 pt-2 pb-1"
           data-cnexus-float-factor-graph
         >
           {graphBody}

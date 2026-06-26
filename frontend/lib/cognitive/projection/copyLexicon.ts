@@ -465,8 +465,8 @@ export const cognitiveCopy = {
   ),
   shareConnectDeviceHint: copy(
     {
-      en: "Paste the other device's ID to discover and trust it. Shared memories can sync after connection.",
-      zh: "粘贴对方设备 ID 即可发现并建立信任，连接后可同步共享记忆。",
+      en: "Paste the other device's ID — CNexus auto-discovers it on your network. No IP or port setup needed.",
+      zh: "粘贴对方设备 ID 即可，系统会自动在局域网寻址并建立信任，无需填写 IP 或端口。",
     },
     {
       en: "DHT lookup + secure handshake, then memory sync",
@@ -483,6 +483,20 @@ export const cognitiveCopy = {
     { en: "Device connected", zh: "设备已连接" },
     { en: "Trusted peer connected", zh: "已建立信任连接" },
     { en: "Trusted peer connected", zh: "Trusted peer connected" },
+  ),
+  shareConnectErrorNoViablePath: copy(
+    {
+      en: "No viable path — enter the peer ID and ensure the other device is online on the same network.",
+      zh: "无法连通 — 请填写对方设备 ID，并确认对方 CNexus 已在同一网络下运行。",
+    },
+    {
+      en: "No viable path — add peer ID above",
+      zh: "无法建立路径 — 请添加对方节点 ID 后重试",
+    },
+    {
+      en: "no_viable_path — enter peer ID above",
+      zh: "no_viable_path — enter peer ID above",
+    },
   ),
   shareTrustedDevices: copy(
     { en: "Trusted devices", zh: "已信任设备" },

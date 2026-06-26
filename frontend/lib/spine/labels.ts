@@ -447,8 +447,8 @@ export const navL = {
   networkFirewall: { en: "Firewall bans", zh: "防火墙封禁" } satisfies BilingualLabel,
   networkConnectPeerTitle: { en: "Connect by PeerID", zh: "按 PeerID 连接" } satisfies BilingualLabel,
   networkConnectPeerHint: {
-    en: "DHT FIND_NODE + ICE probe, then Ed25519 P2P handshake. Trusted peers can gossip and push assets.",
-    zh: "DHT 寻址 + ICE 探测，随后自动完成 Ed25519 P2P 握手。信任邻居可同步审计链并推送资产。",
+    en: "Paste the other device's ID — CNexus will auto-discover it on your local network and complete the secure handshake.",
+    zh: "粘贴对方设备 ID 即可 — 系统会自动在局域网内寻址并完成安全握手，无需额外配置。",
   } satisfies BilingualLabel,
   networkConnectPeerRun: { en: "Connect & trust", zh: "连接并建立信任" } satisfies BilingualLabel,
   networkConnectOk: { en: "Trusted peer connected", zh: "已建立信任连接" } satisfies BilingualLabel,
@@ -459,6 +459,80 @@ export const navL = {
   networkConnectHandshakeSkip: {
     en: "Path ok — identity disabled, handshake skipped",
     zh: "路径已通 — 身份模块未启用，跳过握手",
+  } satisfies BilingualLabel,
+  repairControlTitle: {
+    en: "Integrity & repair control",
+    zh: "完整性诊断与修复控制",
+  } satisfies BilingualLabel,
+  repairControlHint: {
+    en: "System detected missing chunks after connect. Review the gate decision before executing repair.",
+    zh: "连接后系统检测到缺失 chunk。执行修复前请审阅门禁决策。",
+  } satisfies BilingualLabel,
+  repairControlIntegrityOk: {
+    en: "Local chunk store matches manifest — no repair needed.",
+    zh: "本地 chunk 与 manifest 一致 — 无需修复。",
+  } satisfies BilingualLabel,
+  repairControlPhase: { en: "Control phase", zh: "控制面阶段" } satisfies BilingualLabel,
+  repairControlMissing: { en: "Missing chunks", zh: "缺失 chunk" } satisfies BilingualLabel,
+  repairControlPlans: { en: "Repair plans", zh: "修复计划" } satisfies BilingualLabel,
+  repairControlGate: { en: "Execution gate", zh: "执行门禁" } satisfies BilingualLabel,
+  repairControlSources: { en: "Suggested sources", zh: "候选来源" } satisfies BilingualLabel,
+  repairControlPreviewGate: { en: "Preview gate", zh: "预览门禁" } satisfies BilingualLabel,
+  repairControlConfirm: {
+    en: "Confirm & execute repair",
+    zh: "确认并执行修复",
+  } satisfies BilingualLabel,
+  repairControlConfirmPrompt: {
+    en: "Execute verified chunk repair from the connected peer? This will pull and verify blobs locally.",
+    zh: "从已连接节点拉取并验证缺失 chunk？数据将在本地校验后写入。",
+  } satisfies BilingualLabel,
+  repairControlExecuteOk: {
+    en: "Repair executed — chunks verified locally.",
+    zh: "修复已执行 — chunk 已在本地校验写入。",
+  } satisfies BilingualLabel,
+  repairControlExecuteDenied: {
+    en: "Execution denied — probe evidence or policy blocked repair.",
+    zh: "执行被拒绝 — probe 证据不足或策略不允许。",
+  } satisfies BilingualLabel,
+  repairControlConfirmRequired: {
+    en: "User confirmation required before execute.",
+    zh: "执行前需要用户确认。",
+  } satisfies BilingualLabel,
+  networkErrorNoViablePath: {
+    en: "No viable path (no_viable_path) — ensure the other device is running CNexus and on the same network, then retry.",
+    zh: "无法建立连接路径（no_viable_path）— 请确认对方 CNexus 已启动且与您在同一网络，然后重试。",
+  } satisfies BilingualLabel,
+  networkErrorPeerOffline: {
+    en: "Peer not found — ensure the other device is online on the same Wi‑Fi/LAN and CNexus is running.",
+    zh: "未找到对方设备 — 请确认对方 CNexus 已启动，且与您连接同一 Wi‑Fi/局域网。",
+  } satisfies BilingualLabel,
+  networkErrorHostUnreachable: {
+    en: "Peer unreachable — check that CNexus is running on the other device and your firewall allows port 7864.",
+    zh: "对方设备不可达 — 请确认对方 CNexus 正在运行，且防火墙未拦截 7864 端口。",
+  } satisfies BilingualLabel,
+  networkErrorMissingPeerId: {
+    en: "Missing peer ID — paste the other node's Ed25519 pubkey in the field above before connecting.",
+    zh: "未填写对方 ID — 请先在上方输入框粘贴对方的节点公钥，再点击连接。",
+  } satisfies BilingualLabel,
+  networkErrorConnectivityUnavailable: {
+    en: "Connectivity manager unavailable — restart CNexus or enable network stack.",
+    zh: "连接管理器不可用 — 请重启 CNexus 或启用网络栈。",
+  } satisfies BilingualLabel,
+  networkErrorDhtUnavailable: {
+    en: "DHT unavailable — set CNEXUS_DHT_BOOTSTRAP and restart the gateway.",
+    zh: "DHT 不可用 — 请配置 CNEXUS_DHT_BOOTSTRAP 后重启网关。",
+  } satisfies BilingualLabel,
+  networkErrorFirewallBlocked: {
+    en: "Connection blocked by firewall or low trust score.",
+    zh: "连接被防火墙拦截或信誉分过低。",
+  } satisfies BilingualLabel,
+  networkErrorHandshakeFailed: {
+    en: "P2P handshake failed — verify the peer ID and that both nodes use compatible identity keys.",
+    zh: "P2P 握手失败 — 请核对对方 ID 是否正确，并确认双方身份密钥可用。",
+  } satisfies BilingualLabel,
+  networkConnectPeerPlaceholder: {
+    en: "Other node's ID — 64-char Ed25519 hex pubkey",
+    zh: "对方节点 ID（64 位 Ed25519 十六进制公钥）",
   } satisfies BilingualLabel,
   networkTrustedPeersTitle: { en: "Trusted peers", zh: "信任邻居" } satisfies BilingualLabel,
   networkTrustedPeersEmpty: {

@@ -10,6 +10,7 @@ export type GtbsRawEvent = {
   payload?: Record<string, unknown>;
 };
 import { getApiBase, getWsBase, getApiToken } from "./cnexusConfig";
+import { humanizeNetworkConnectError } from "./networkConnectErrors";
 import { isPersonalMode, isWebSocketEnabled, shouldSuppressRuntimeConnectError } from "./personalGuard";
 import { statusToMindOverview, converseToMindOverview } from "../src/adapters/cnexus_v2.adapter";
 
@@ -1734,7 +1735,39 @@ export const cnexusProductApi = {
     });
     const data = (await resp.json().catch(() => ({}))) as Record<string, unknown>;
     if (!resp.ok || data.ok === false) {
-      throw new Error(String(data.error || resp.statusText || "Connect failed"));
+      throw new Error(
+        humanizeNetworkConnectError(String(data.error || resp.statusText || "Connect failed"), {
+          hint: String(data.hint || ""),
+        }),
+      );
+    }
+    return data;
+  },
+  applicationRepair: async (body: {
+    action: "hook" | "gate" | "execute";
+    confirm?: boolean;
+    peer_id?: string;
+    peer_host?: string;
+    host?: string;
+    plans?: unknown[];
+    suggested_sources?: unknown[];
+  }) => {
+    const resp = await fetch(`${getApiBase()}/api/application/repair`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = (await resp.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!resp.ok && resp.status !== 409) {
+      throw new Error(String(data.error || resp.statusText || "Application repair failed"));
+    }
+    return { data, status: resp.status };
+  },
+  fetchApplicationStatus: async () => {
+    const resp = await fetch(`${getApiBase()}/api/application/status`, { cache: "no-store" });
+    const data = (await resp.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!resp.ok || data.ok === false) {
+      throw new Error(String(data.error || "Application status unavailable"));
     }
     return data;
   },

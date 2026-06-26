@@ -12,12 +12,14 @@ export function ChatMemoryScopeSelect({
   value,
   onChange,
   compact = false,
+  hideActiveHint = false,
   disabled = false,
   className = "",
 }: {
   value: MemoryScope;
   onChange: (scope: MemoryScope) => void;
   compact?: boolean;
+  hideActiveHint?: boolean;
   disabled?: boolean;
   className?: string;
 }) {
@@ -25,7 +27,7 @@ export function ChatMemoryScopeSelect({
   const activeHint = MEMORY_SCOPE_OPTIONS.find((option) => option.id === value)?.hint ?? "";
 
   return (
-    <div className={className}>
+    <div className={className} data-cnexus-float-scope-select={compact || undefined}>
       <p
         className={`mb-1.5 px-0.5 ${compact ? floatTy.caption : "text-[10px]"}`}
         style={{ color: t.textMuted }}
@@ -67,7 +69,7 @@ export function ChatMemoryScopeSelect({
           );
         })}
       </div>
-      {activeHint ? (
+      {activeHint && !hideActiveHint ? (
         <p
           className={`mt-1.5 px-0.5 ${compact ? floatTy.caption : "text-[10px]"}`}
           style={{ color: t.textLight }}

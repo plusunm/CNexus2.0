@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional
 
-from .constitution_loader import default_constitution_dir
+from .constitution_loader import bootstrap_foundation_dir, default_constitution_dir, default_foundation_dir
 from .memory_foundation import (
     foundation_version_tree,
     list_foundation_versions,
@@ -30,6 +30,7 @@ class MemoryControlHooks:
     mutate_memory_store: Callable[..., Any] | None = None
     schedule_persist: Callable[[], None] | None = None
     constitution_dir: Callable[[], str] | None = None
+    foundation_dir: Callable[[], str] | None = None
     recompile_runtime: Callable[..., Dict[str, Any]] | None = None
     get_runtime_status: Callable[[], Dict[str, Any]] | None = None
 
@@ -149,6 +150,28 @@ class MemoryControlService:
 
         return self._require_store()(read)
 
+    def bootstrap_foundation(self, *, force: bool = False) -> Dict[str, Any]:
+        """Seed shipped Foundation docs (user manual) into Memory on first boot."""
+        mutate = self._hooks.mutate_memory_store
+        if mutate is None:
+            return {"ok": False, "error": "store_not_wired"}
+        dir_fn = self._hooks.foundation_dir
+        if dir_fn is not None:
+            foundation_dir = dir_fn()
+        elif self._hooks.constitution_dir is not None:
+            app_root = os.path.dirname(self._hooks.constitution_dir())
+            foundation_dir = default_foundation_dir(app_root)
+        else:
+            foundation_dir = ""
+        result = bootstrap_foundation_dir(mutate, foundation_dir, force=force)
+        if result.get("loaded") or result.get("upgraded"):
+            self._after_mutation()
+            self._hooks.append_runtime_log(
+                f"Foundation BOOT · loaded={result.get('loaded', 0)} upgraded={result.get('upgraded', 0)}",
+                category="control_plane",
+            )
+        return result
+
     def bootstrap_constitution(self, *, force: bool = False) -> Dict[str, Any]:
         """Legacy alias — recompiles Runtime constitution.bin (not Memory)."""
         if self._hooks.recompile_runtime is not None:
@@ -179,6 +202,10 @@ class MemoryControlService:
         if result.get("migrated") or result.get("archived_runtime"):
             self._after_mutation()
         return result
+
+    @staticmethod
+    def resolve_foundation_dir(app_root: str) -> str:
+        return default_foundation_dir(app_root)
 
     @staticmethod
     def resolve_constitution_dir(app_root: str) -> str:

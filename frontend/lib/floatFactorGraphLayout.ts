@@ -3,14 +3,16 @@ import { floatShellHeight, floatShellWidth } from "./floatWindowSpec";
 
 /**
  * Chrome heights (px) derived from float shell Tailwind classes.
- * Keep in sync with FloatingHeaderBar, FloatingQuickButtons, FloatingCognitiveHints,
- * FloatingExpandPanel, FloatingMemoryPanel, FloatTokenStrip.
+ * Keep in sync with FloatingHeaderBar, FloatingQuickButtons, FloatExperienceTierBar,
+ * FloatingExpandPanel, FloatingMemoryPanel, FloatTokenStrip, ScopedMemoryFlowGraph3D.
  */
 export const FLOAT_SHELL_CHROME = {
   /** FloatingHeaderBar — px-3 py-2 border-b */
   headerBar: 44,
   /** FloatingQuickButtons — px-3 py-2 + tab py-2 */
   quickTabs: 48,
+  /** FloatExperienceTierBar wrapper — pt-2 pb-1 border-b + tier buttons + footnote */
+  experienceTierBar: 92,
   /** FloatingCognitiveHints — pt-2 pb-1.5 + badge + suggestion row */
   cognitiveHints: 76,
   /** FloatingExpandPanel content — pb-3 */
@@ -22,6 +24,10 @@ export const FLOAT_SHELL_CHROME = {
 export const FLOAT_MEMORY_PANEL_CHROME = {
   /** Section header — py-1.5 + 12px label */
   sectionHeader: 32,
+  /** ChatMemoryScopeSelect compact (no active-hint line) */
+  scopeSelectBlock: 74,
+  /** space-y-3 between scope row and canvas */
+  graphBodyGap: 12,
   /** Graph wrapper — px-2 × 2 */
   graphPadX: 16,
   graphPadTop: 8,
@@ -32,21 +38,14 @@ export const FLOAT_MEMORY_PANEL_CHROME = {
   graphFooter: 16,
   /** FloatTokenStrip fixed chrome (header + stats) before trace list */
   tokenStripFixed: 82,
-  tokenTraceMin: 72,
-  tokenTraceMax: 140,
+  tokenTraceMin: 56,
+  tokenTraceMax: 120,
 } as const;
 
-/** Share of memory-panel body (below section header) reserved for the factor graph. */
-const GRAPH_BODY_SHARE: Record<FloatStage, number> = {
-  expanded: 0.56,
-  bar: 0.5,
-  dock: 0.45,
-};
-
 const GRAPH_HEIGHT_BOUNDS: Record<FloatStage, { min: number; max: number }> = {
-  expanded: { min: 220, max: 340 },
-  bar: { min: 160, max: 200 },
-  dock: { min: 120, max: 160 },
+  expanded: { min: 96, max: 200 },
+  bar: { min: 72, max: 120 },
+  dock: { min: 48, max: 80 },
 };
 
 export type FloatFactorGraphFrame = {
@@ -54,18 +53,34 @@ export type FloatFactorGraphFrame = {
   shellHeight: number;
   memoryPanelHeight: number;
   graphWidth: number;
+  /** Canvas drawable height (px) */
   graphHeight: number;
-  /** graphHeight + vertical padding + border — grid row size */
+  /** Canvas + inner chrome (padding, border, footer) */
   graphSlotHeight: number;
+  /** Header + scope + gap + graphSlot — grid row for graph section */
+  graphSectionHeight: number;
   tokenTraceHeight: number;
   tokenAreaHeight: number;
 };
 
+function canvasChrome(mem: typeof FLOAT_MEMORY_PANEL_CHROME): number {
+  return mem.graphPadTop + mem.graphPadBottom + mem.graphBorder + mem.graphFooter;
+}
+
+function graphSectionFixedChrome(
+  mem: typeof FLOAT_MEMORY_PANEL_CHROME,
+  headerHeight: number = mem.sectionHeader,
+  scopeHeight: number = mem.scopeSelectBlock,
+): number {
+  return headerHeight + scopeHeight + mem.graphBodyGap + canvasChrome(mem);
+}
+
+/** Memory panel lives below tier bar; cognitive hints hidden on memory tab (personal). */
 function memoryPanelHeightForStage(stage: FloatStage): number {
   const shellH = floatShellHeight(stage);
   const c = FLOAT_SHELL_CHROME;
   const expandBody = shellH - c.headerBar - c.quickTabs;
-  return expandBody - c.cognitiveHints - c.expandPadBottom;
+  return expandBody - c.experienceTierBar - c.expandPadBottom;
 }
 
 export function computeFloatFactorGraphFrame(stage: FloatStage): FloatFactorGraphFrame {
@@ -76,30 +91,29 @@ export function computeFloatFactorGraphFrame(stage: FloatStage): FloatFactorGrap
   const bounds = GRAPH_HEIGHT_BOUNDS[stage];
 
   const memoryPanelH = memoryPanelHeightForStage(stage);
-  const bodyBelowHeader = Math.max(0, memoryPanelH - mem.sectionHeader);
-  const graphChrome = mem.graphPadTop + mem.graphPadBottom + mem.graphBorder + mem.graphFooter;
+  const fixedChrome = graphSectionFixedChrome(mem);
   const tokenMinArea = mem.tokenStripFixed + mem.tokenTraceMin;
-  const maxGraphCanvas = Math.max(0, bodyBelowHeader - tokenMinArea - graphChrome);
+  const maxGraphHeight = Math.max(0, memoryPanelH - fixedChrome - tokenMinArea);
 
-  let graphHeight = Math.floor(bodyBelowHeader * GRAPH_BODY_SHARE[stage]) - graphChrome;
-  graphHeight = Math.max(
-    Math.min(bounds.min, maxGraphCanvas),
-    Math.min(bounds.max, graphHeight, maxGraphCanvas),
+  let graphHeight = Math.min(bounds.max, Math.max(bounds.min, maxGraphHeight));
+  let tokenTraceH = Math.max(
+    mem.tokenTraceMin,
+    Math.min(mem.tokenTraceMax, memoryPanelH - fixedChrome - graphHeight - mem.tokenStripFixed),
   );
+  let tokenAreaHeight = mem.tokenStripFixed + tokenTraceH;
 
-  let tokenAreaHeight = bodyBelowHeader - graphHeight - graphChrome;
-  let tokenTraceH = tokenAreaHeight - mem.tokenStripFixed;
-  tokenTraceH = Math.max(mem.tokenTraceMin, Math.min(mem.tokenTraceMax, tokenTraceH));
-  tokenAreaHeight = mem.tokenStripFixed + tokenTraceH;
-
-  const used = graphHeight + graphChrome + tokenAreaHeight;
-  if (used > bodyBelowHeader) {
-    const excess = used - bodyBelowHeader;
+  let graphSectionHeight = fixedChrome + graphHeight;
+  let total = graphSectionHeight + tokenAreaHeight;
+  if (total > memoryPanelH) {
+    const excess = total - memoryPanelH;
     tokenTraceH = Math.max(mem.tokenTraceMin, tokenTraceH - excess);
     tokenAreaHeight = mem.tokenStripFixed + tokenTraceH;
-    graphHeight = Math.max(0, bodyBelowHeader - graphChrome - tokenAreaHeight);
+    graphHeight = Math.max(0, memoryPanelH - fixedChrome - tokenAreaHeight);
+    graphHeight = Math.min(bounds.max, graphHeight);
+    graphSectionHeight = fixedChrome + graphHeight;
   }
 
+  const graphChrome = canvasChrome(mem);
   const graphSlotHeight = graphHeight + graphChrome;
   const graphWidth = Math.max(160, shellW - shell.expandPadX - mem.graphPadX);
 
@@ -110,17 +124,19 @@ export function computeFloatFactorGraphFrame(stage: FloatStage): FloatFactorGrap
     graphWidth,
     graphHeight,
     graphSlotHeight,
+    graphSectionHeight,
     tokenTraceHeight: tokenTraceH,
     tokenAreaHeight,
   };
 }
 
-/** Refine theoretical frame using measured panel + section header (token area stays reserved). */
+/** Refine frame from measured panel + header + scope select heights. */
 export function refineFloatFactorGraphFrame(
   stage: FloatStage,
   panelWidth: number,
   panelHeight: number,
   headerHeight: number,
+  scopeHeight: number,
   base: FloatFactorGraphFrame,
 ): FloatFactorGraphFrame {
   const mem = FLOAT_MEMORY_PANEL_CHROME;
@@ -128,14 +144,14 @@ export function refineFloatFactorGraphFrame(
 
   if (panelWidth < 1 || panelHeight < 1) return base;
 
-  const graphChrome = mem.graphPadTop + mem.graphPadBottom + mem.graphBorder + mem.graphFooter;
+  const fixedChrome = graphSectionFixedChrome(mem, headerHeight, scopeHeight);
+  const graphChrome = canvasChrome(mem);
   const graphWidth = Math.max(160, panelWidth - mem.graphPadX);
-  const rawGraphH = panelHeight - headerHeight - base.tokenAreaHeight - graphChrome;
-  const graphHeight = Math.max(
-    Math.min(bounds.min, rawGraphH),
-    Math.min(bounds.max, rawGraphH),
-  );
+
+  const maxGraphHeight = Math.max(0, panelHeight - base.tokenAreaHeight - fixedChrome);
+  const graphHeight = Math.min(bounds.max, maxGraphHeight);
   const graphSlotHeight = graphHeight + graphChrome;
+  const graphSectionHeight = fixedChrome + graphHeight;
 
   return {
     ...base,
@@ -143,5 +159,6 @@ export function refineFloatFactorGraphFrame(
     graphWidth,
     graphHeight,
     graphSlotHeight,
+    graphSectionHeight,
   };
 }

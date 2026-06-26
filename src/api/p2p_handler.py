@@ -1,4 +1,4 @@
-"""P2P handshake — challenge/response trust establishment."""
+"""P2P handshake — challenge/response trust establishment (Device + Session only)."""
 
 from __future__ import annotations
 
@@ -6,14 +6,26 @@ import secrets
 import time
 from typing import Any, Dict, Optional
 
+try:
+    from protocol.constants import CNEXUS_PROTOCOL_VERSION, CRYPTO_SUITE_ED25519, DEFAULT_PERSONAL_CAPABILITY
+    from protocol.handshake_guard import assert_handshake_clean
+    from protocol.models import HandshakeHello
+except ImportError:
+    from cnexus_protocol.constants import CNEXUS_PROTOCOL_VERSION, CRYPTO_SUITE_ED25519, DEFAULT_PERSONAL_CAPABILITY
+    from cnexus_protocol.handshake_guard import assert_handshake_clean
+    from cnexus_protocol.models import HandshakeHello
+
 
 class HandshakeHandler:
     """Four-step trust handshake between CNexus nodes."""
 
     CHALLENGE_TTL_SECONDS = 120
 
-    def __init__(self, identity_manager):
+    def __init__(self, identity_manager, *, capability: int = DEFAULT_PERSONAL_CAPABILITY):
         self.id_mgr = identity_manager
+        self.capability = int(capability)
+        self.protocol_version = CNEXUS_PROTOCOL_VERSION
+        self.crypto_suite = CRYPTO_SUITE_ED25519
         self.pending_challenges: Dict[str, Dict[str, Any]] = {}
 
     def _purge_expired(self):
@@ -26,13 +38,16 @@ class HandshakeHandler:
         return self.id_mgr.public_key_hex()
 
     def initiate_hello(self) -> dict:
-        """Node A announces identity (outbound preamble)."""
-        return {
-            "action": "HELLO",
-            "pubkey": self.local_pubkey(),
-        }
+        """Node A announces identity (outbound preamble). Cognition-free."""
+        hello = HandshakeHello(
+            peer_id=self.local_pubkey(),
+            protocol_version=self.protocol_version,
+            capability=self.capability,
+            crypto_suite=self.crypto_suite,
+        )
+        return hello.to_dict()
 
-    def handle_hello(self, peer_pubkey: str, peer_host: Optional[str] = None) -> dict:
+    def handle_hello(self, peer_pubkey: str, peer_host: Optional[str] = None, *, remote: Optional[dict] = None) -> dict:
         """Step 1→2: peer says hello, we issue nonce challenge."""
         self._purge_expired()
         if not peer_pubkey:
@@ -42,11 +57,17 @@ class HandshakeHandler:
             "nonce": nonce,
             "expires": time.time() + self.CHALLENGE_TTL_SECONDS,
             "host": peer_host or "",
+            "remote_capability": int((remote or {}).get("capability") or 0),
+            "remote_protocol_version": str((remote or {}).get("protocol_version") or ""),
         }
         return {
             "action": "HANDSHAKE_CHALLENGE",
             "nonce": nonce,
             "pubkey": self.local_pubkey(),
+            "peer_id": self.local_pubkey(),
+            "protocol_version": self.protocol_version,
+            "capability": self.capability,
+            "crypto_suite": self.crypto_suite,
         }
 
     def build_response(self, nonce: str, peer_pubkey: str) -> dict:
@@ -78,14 +99,19 @@ class HandshakeHandler:
 
     def handle_request(self, data: dict) -> dict:
         """Single entrypoint for POST /api/p2p/handshake."""
+        try:
+            assert_handshake_clean(data or {})
+        except ValueError as exc:
+            return {"ok": False, "error": "handshake_cognitive_forbidden", "detail": str(exc)}
+
         action = str(data.get("action") or "HELLO").upper()
-        peer_pubkey = str(data.get("peer_pubkey") or data.get("pubkey") or "").strip()
+        peer_pubkey = str(data.get("peer_pubkey") or data.get("pubkey") or data.get("peer_id") or "").strip()
         peer_host = str(data.get("host") or data.get("peer_host") or "").strip()
 
         if action in ("HELLO", "HANDSHAKE_HELLO", "CHALLENGE_REQUEST", "HANDSHAKE_INIT"):
             if not peer_pubkey:
                 return {"ok": False, "error": "missing_peer_pubkey"}
-            challenge = self.handle_hello(peer_pubkey, peer_host)
+            challenge = self.handle_hello(peer_pubkey, peer_host, remote=data)
             return {"ok": True, **challenge}
 
         if action == "HANDSHAKE_RESPONSE":
@@ -99,7 +125,11 @@ class HandshakeHandler:
                 "ok": True,
                 "status": "trusted_peer",
                 "pubkey": peer_pubkey,
+                "peer_id": peer_pubkey,
                 "host": peer_host or self.pending_host(peer_pubkey),
+                "protocol_version": self.protocol_version,
+                "capability": self.capability,
+                "crypto_suite": self.crypto_suite,
             }
 
         return {"ok": False, "error": "unknown_handshake_action", "action": action}

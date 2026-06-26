@@ -332,13 +332,15 @@ export function formatLlmTestFailure(detail: string): string {
 }
 
 /** Push float LLM settings into Runtime (when localStorage has a key). */
-export async function syncLlmQuickConfigToRuntime(): Promise<{
+export type LlmSyncResult = {
   ok: boolean;
   modelId?: string;
   testOk?: boolean;
   testDetail?: string;
   error?: string;
-}> {
+};
+
+export async function syncLlmQuickConfigToRuntime(): Promise<LlmSyncResult> {
   const sync = buildRuntimeModelPayload();
   if (!sync) return { ok: false, error: "missing_key" };
   const { brainApi } = await import("./api");
@@ -385,6 +387,12 @@ export async function syncLlmQuickConfigToRuntime(): Promise<{
     }
 
     const activated = await activateProfile(profile.id);
+
+    try {
+      await brainApi.updateModel("cnexus-local", { is_default: false });
+    } catch {
+      /* non-fatal */
+    }
 
     let testOk = false;
     let testDetail: string | undefined;

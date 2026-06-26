@@ -28,7 +28,9 @@ export function useFloatFactorGraphFrame(
 
     const remeasure = () => {
       const headerEl = root.querySelector<HTMLElement>("[data-cnexus-float-factor-header]");
+      const scopeEl = root.querySelector<HTMLElement>("[data-cnexus-float-scope-select]");
       const headerH = headerEl?.offsetHeight ?? mem.sectionHeader;
+      const scopeH = scopeEl?.offsetHeight ?? mem.scopeSelectBlock;
 
       setFrame(
         refineFloatFactorGraphFrame(
@@ -36,6 +38,7 @@ export function useFloatFactorGraphFrame(
           root.clientWidth,
           root.clientHeight,
           headerH,
+          scopeH,
           theoretical,
         ),
       );

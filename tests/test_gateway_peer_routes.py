@@ -81,8 +81,29 @@ class _MeshStub:
     def dht_rpc(self, data):
         return {"dht": data.get("op")}, 200
 
-    def connectivity_connect(self, peer_id):
-        return {"peer_id": peer_id}, 200
+    def connectivity_connect(self, peer_id, hint_host=""):
+        return {"peer_id": peer_id, "hint_host": hint_host}, 200
+
+    def catalog_bloom_get(self, namespace="catalog/system"):
+        return {"ok": True, "bloom": "AA==", "generation": 1}, 200
+
+    def catalog_generation_get(self):
+        return {"ok": True, "generation": 1}, 200
+
+    def catalog_bloom_summary_get(self, namespace="catalog/system"):
+        return {"ok": True, "summary": {"digest": "abc"}}, 200
+
+    def catalog_index_get(self, commit_cursors=None, namespace="catalog/system", limit=256, interest=None):
+        return {"ok": True, "entries": [], "generation": 1}, 200
+
+    def catalog_status(self):
+        return {"ok": True, "catalog": {"graph_count": 0}}, 200
+
+    def cognitive_head_get(self, graph_id):
+        return {"ok": True, "head": {"graph_id": graph_id}}, 200
+
+    def cognitive_status(self):
+        return {"ok": True, "cognitive": {"graph_count": 0}}, 200
 
     def network_firewall_ban(self, data):
         return {"banned": data.get("pubkey")}, 200
@@ -116,9 +137,28 @@ class PeerRouteHandlerTests(unittest.TestCase):
         self.assertEqual(resp.status, 403)
 
     def test_connectivity_connect_post(self):
-        http = _FakeHttp({"peer_id": "peer-1"})
+        http = _FakeHttp({"peer_id": "peer-1", "host": "http://127.0.0.1:7864"})
         resp = self._handler().handle_post("/api/connectivity/connect", http)
         self.assertEqual(resp.json_body["peer_id"], "peer-1")
+        self.assertEqual(resp.json_body["hint_host"], "http://127.0.0.1:7864")
+
+    def test_catalog_bloom_get(self):
+        resp = self._handler().handle_get("/api/catalog/bloom", "", _FakeHeaders())
+        self.assertTrue(resp.json_body["ok"])
+
+    def test_catalog_index_get(self):
+        resp = self._handler().handle_get("/api/catalog/index", "limit=10", _FakeHeaders())
+        self.assertTrue(resp.json_body["ok"])
+        self.assertEqual(resp.json_body["generation"], 1)
+
+    def test_catalog_generation_get(self):
+        resp = self._handler().handle_get("/api/catalog/generation", "", _FakeHeaders())
+        self.assertTrue(resp.json_body["ok"])
+
+    def test_cognitive_head_get(self):
+        resp = self._handler().handle_get("/api/cognitive/head", "graph_id=abc", _FakeHeaders())
+        self.assertTrue(resp.json_body["ok"])
+        self.assertEqual(resp.json_body["head"]["graph_id"], "abc")
 
     def test_unhandled_returns_none(self):
         self.assertIsNone(self._handler().handle_get("/api/status", "", _FakeHeaders()))

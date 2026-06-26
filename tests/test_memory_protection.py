@@ -197,6 +197,28 @@ class MemoryFoundationTests(unittest.TestCase):
         self.assertEqual(len(active), 1)
         self.assertEqual((active[0].get("data") or {}).get("memory_version"), 2)
 
+    def test_bootstrap_foundation_loads_manual(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            foundation_dir = os.path.join(tmp, "runtime", "foundation")
+            os.makedirs(foundation_dir)
+            path = os.path.join(foundation_dir, "CNexus用户手册.md")
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write("# CNexus 用户手册\nv2.4.0 安装与使用指南")
+            store = _FakeStore()
+
+            def mutate(fn):
+                return fn(store)
+
+            report = self.loader.bootstrap_foundation_dir(mutate, foundation_dir)
+            self.assertTrue(report["ok"])
+            self.assertEqual(report["loaded"], 1)
+            active = [b for b in store.blocks if not (b.get("data") or {}).get("superseded")]
+            self.assertEqual(len(active), 1)
+            data = active[0].get("data") or {}
+            self.assertEqual(data.get("memory_level"), "foundation")
+            self.assertEqual(data.get("upgrade_source"), "foundation_boot")
+            self.assertIn("foundation:CNexus用户手册.md", str(data.get("constitution_key")))
+
     def test_bootstrap_constitution_loads_md(self):
         from runtime.compiler import compile_runtime_sources
 

@@ -110,21 +110,25 @@ def test_genesis_handshake_exchanges_entropy():
 
         import urllib.request as urlrequest
 
-        urlrequest.urlopen = fake_urlopen
+        original_urlopen = urlrequest.urlopen
+        try:
+            urlrequest.urlopen = fake_urlopen
 
-        gossip_b = GossipSync(audit_b, im, None)
-        gossip_b.attach_peer_registry(reg_b)
-        genesis = GenesisSync(gossip_b, enabled=True, jitter_min=0, jitter_max=0, chunk_size=200)
-        genesis.attach_entropy(store_b)
-        gossip_b.attach_genesis(genesis)
+            gossip_b = GossipSync(audit_b, im, None)
+            gossip_b.attach_peer_registry(reg_b)
+            genesis = GenesisSync(gossip_b, enabled=True, jitter_min=0, jitter_max=0, chunk_size=200)
+            genesis.attach_entropy(store_b)
+            gossip_b.attach_genesis(genesis)
 
-        result = genesis.genesis_handshake("http://127.0.0.1:9001", peer_pubkey="peer-test")
-        assert result.get("ok"), result
-        assert result.get("head_probe", {}).get("peer_entropy_recorded") == "0xabcdef0123456789"
-        peer_row = reg_b.get_peer("peer-test") or {}
-        assert peer_row.get("entropy_seed") == "0xabcdef0123456789"
-        assert audit_b.last_hash == audit_a.last_hash
-        print("genesis_entropy:", result.get("head_probe", {}).get("global_entropy"))
+            result = genesis.genesis_handshake("http://127.0.0.1:9001", peer_pubkey="peer-test")
+            assert result.get("ok"), result
+            assert result.get("head_probe", {}).get("peer_entropy_recorded") == "0xabcdef0123456789"
+            peer_row = reg_b.get_peer("peer-test") or {}
+            assert peer_row.get("entropy_seed") == "0xabcdef0123456789"
+            assert audit_b.last_hash == audit_a.last_hash
+            print("genesis_entropy:", result.get("head_probe", {}).get("global_entropy"))
+        finally:
+            urlrequest.urlopen = original_urlopen
 
 
 def main():

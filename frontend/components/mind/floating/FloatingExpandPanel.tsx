@@ -20,7 +20,7 @@ export function FloatingExpandPanel({ panel }: Props) {
   const t = useMindTheme();
   const sessionEpoch = useFloatingBarStore((s) => s.sessionEpoch);
   const personal = isFloatPersonalEdition();
-  const showCognitiveHints = !(personal && (panel === "chat" || panel === "memchat"));
+  const showCognitiveHints = !(personal && (panel === "chat" || panel === "memchat" || panel === "memory"));
 
   return (
     <div className="cnexus-float-expand-body flex-1" data-no-drag>

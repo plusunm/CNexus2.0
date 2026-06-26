@@ -42,7 +42,7 @@ import {
   buildConflictChatPrompt,
   consumeConflictChatSeed,
 } from "@/lib/conflictChatBridge";
-import { resolvePersonalChatModelId } from "@/lib/personalChatModel";
+import { resolvePersonalChatModelId, ensurePersonalChatModelForSend, applyLlmSyncToStore } from "@/lib/personalChatModel";
 import { useRuntimeInteract } from "@/hooks/useRuntimeInteract";
 
 type Msg = StoredChatMessage;
@@ -341,7 +341,7 @@ export function ChatPanel({
       const activeMemoryScope = memoryScope;
       const assistantMeta = `CNexus 2.0 · ${thinkingModeLabel(activeThinkingMode)} · ${converseModeLabel(activeConverseMode)}`;
       setMessages((m) => [...m, { role: "assistant", text: "", meta: assistantMeta }]);
-      const modelId = resolvePersonalChatModelId(selectedModelId || "cnexus-local", models);
+      const modelId = await ensurePersonalChatModelForSend(selectedModelId || "cnexus-local", models);
       try {
         let latencyHint = "";
         let inputUnlocked = false;

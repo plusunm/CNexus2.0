@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Globe, Radar, Shield, Link2, Ban, RefreshCw, Users } from "lucide-react";
 import { cnexusProductApi } from "@/lib/api";
+import { parseConnectApplication, type ApplicationConnectSnapshot } from "@/lib/applicationControl";
 import { bi, navL } from "@/lib/spine/labels";
 import { useMindTheme } from "../MindUiProvider";
+import { RepairGatePanel } from "../shared/RepairGatePanel";
 
 type TrustedPeerRow = {
   pubkey: string;
@@ -28,6 +30,7 @@ export function NetworkConnectLayout() {
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [repairSnapshot, setRepairSnapshot] = useState<ApplicationConnectSnapshot | null>(null);
 
   const refresh = useCallback(async () => {
     setBusy("refresh");
@@ -72,6 +75,7 @@ export function NetworkConnectLayout() {
     setBusy("connect");
     setMessage("");
     setError("");
+    setRepairSnapshot(null);
     try {
       const row = await cnexusProductApi.connectToPeer(peerId.trim());
       const handshake = (row.handshake || {}) as Record<string, unknown>;
@@ -83,6 +87,8 @@ export function NetworkConnectLayout() {
       } else {
         setMessage(`${bi(navL.networkConnectOk)} · ${pathKind}`);
       }
+      const appSnapshot = parseConnectApplication(row);
+      if (appSnapshot) setRepairSnapshot(appSnapshot);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -198,7 +204,7 @@ export function NetworkConnectLayout() {
         <input
           value={peerId}
           onChange={(e) => setPeerId(e.target.value)}
-          placeholder="peer Ed25519 pubkey (64 hex)"
+          placeholder={bi(navL.networkConnectPeerPlaceholder)}
           className="w-full rounded-lg border px-2 py-1.5 text-xs font-mono"
           style={{ borderColor: t.border, backgroundColor: t.chatBg, color: t.text }}
         />
@@ -212,6 +218,10 @@ export function NetworkConnectLayout() {
           {busy === "connect" ? "…" : bi(navL.networkConnectPeerRun)}
         </button>
       </section>
+
+      {repairSnapshot && (
+        <RepairGatePanel snapshot={repairSnapshot} onComplete={() => void refresh()} />
+      )}
 
       <section
         className="rounded-xl border p-3 space-y-3"

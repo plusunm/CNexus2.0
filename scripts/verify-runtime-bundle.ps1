@@ -36,6 +36,15 @@ foreach ($rel in $required) {
     }
 }
 
+$foundationDir = Join-Path $Bundle "app/runtime/foundation"
+$foundationDocs = @(Get-ChildItem -Path $foundationDir -Filter "*.md" -ErrorAction SilentlyContinue)
+if ($foundationDocs.Count -gt 0) {
+    Write-Host "[OK] app/runtime/foundation ($($foundationDocs.Count) manual doc(s))" -ForegroundColor Green
+} else {
+    Write-Host "[FAIL] app/runtime/foundation — no user manual .md" -ForegroundColor Red
+    $missing += "app/runtime/foundation/*.md"
+}
+
 $sitePackages = Join-Path $Bundle "python/Lib/site-packages"
 $nacl = Join-Path $sitePackages "nacl"
 if (Test-Path $nacl) {

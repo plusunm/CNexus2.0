@@ -9,6 +9,7 @@ import {
   syncLlmQuickConfigToRuntime,
   syncOllamaLocalToRuntime,
 } from "@/lib/floatIntegrations";
+import { applyLlmSyncToStore } from "@/lib/personalChatModel";
 import { isTauriDesktop, listenRuntimeReady } from "@/lib/tauriDesktop";
 import { createBootstrapGate } from "./FrontendBootstrapGateV3";
 import { useMindConnection } from "./MindConnectionProvider";
@@ -189,11 +190,8 @@ export function MindRuntimeBridge({ children }: { children: React.ReactNode }) {
       const sync = buildRuntimeModelPayload();
       if (sync) {
         const result = await syncLlmQuickConfigToRuntime();
-        if (result.ok && result.testOk && result.modelId) {
-          store().setSelectedModel(result.modelId);
-          await store().refreshModels();
-          return;
-        }
+        await applyLlmSyncToStore(result);
+        if (result.ok && result.modelId) return;
       }
       try {
         const exec = await cnexusProductApi.executionStatus();

@@ -1299,12 +1299,197 @@ def _peer_registry_path():
     return os.environ.get("CNEXUS_PEERS_FILE", os.path.join(_PERSIST_DIR, "peers.json"))
 
 
+def _catalog_store_path():
+    return os.environ.get("CNEXUS_CATALOG_FILE", os.path.join(_PERSIST_DIR, "catalog.json"))
+
+
+_catalog_service = None
+_cognitive_service = None
+_storage_service = None
+_repair_service = None
+_application_service = None
+
+
+def _load_catalog_module(name, fname):
+    import importlib.util as u
+    catalog_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "src", "catalog")
+    spec = u.spec_from_file_location(name, os.path.join(catalog_dir, fname))
+    m = u.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def _get_catalog_service():
+    global _catalog_service
+    if _catalog_service is not None:
+        return _catalog_service
+    try:
+        store_mod = _load_catalog_module("catalog_store", "store.py")
+        service_mod = _load_catalog_module("catalog_service", "service.py")
+        store = store_mod.CatalogStore(_catalog_store_path())
+        _catalog_service = service_mod.CatalogService(store)
+    except Exception:
+        _catalog_service = None
+    return _catalog_service
+
+
+def _cognitive_store_path():
+    return os.environ.get("CNEXUS_COGNITIVE_FILE", os.path.join(_PERSIST_DIR, "cognitive.json"))
+
+
+def _load_cognitive_module(name, fname):
+    import importlib.util as u
+    cognitive_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "src", "cognitive")
+    spec = u.spec_from_file_location(name, os.path.join(cognitive_dir, fname))
+    m = u.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def _chunks_dir():
+    return os.environ.get("CNEXUS_CHUNKS_DIR", os.path.join(_PERSIST_DIR, "chunks"))
+
+
+def _descriptor_store_path():
+    return os.environ.get("CNEXUS_DESCRIPTOR_FILE", os.path.join(_PERSIST_DIR, "chunk_descriptors.json"))
+
+
+def _execution_policy_path():
+    return os.environ.get("CNEXUS_EXECUTION_POLICY_FILE", os.path.join(_PERSIST_DIR, "execution_policy.json"))
+
+
+def _get_storage_service():
+    global _storage_service
+    if _storage_service is not None:
+        return _storage_service
+    try:
+        chunk_mod = _load_storage_module("storage_chunk_store", "chunk_store.py")
+        manifest_mod = _load_storage_module("storage_manifest_store", "manifest_store.py")
+        desc_mod = _load_storage_module("storage_descriptor_store", "descriptor_store.py")
+        service_mod = _load_storage_module("storage_service", "service.py")
+        chunk_store = chunk_mod.ChunkStore(_chunks_dir())
+        manifest_store = manifest_mod.ManifestStore(_manifest_store_path())
+        descriptor_store = desc_mod.DescriptorStore(_descriptor_store_path())
+        _storage_service = service_mod.StorageService(chunk_store, manifest_store, descriptor_store)
+    except Exception:
+        _storage_service = None
+    return _storage_service
+
+
+def _get_repair_service():
+    global _repair_service
+    if _repair_service is not None:
+        return _repair_service
+    storage = _get_storage_service()
+    if storage is None:
+        return None
+    try:
+        repair_mod = _load_storage_module("storage_repair_service", "repair_service.py")
+        policy_mod = _load_storage_module("storage_execution_policy_store", "execution_policy_store.py")
+        _repair_service = repair_mod.RepairService(
+            storage,
+            catalog_service=_get_catalog_service(),
+            policy_store=policy_mod.ExecutionPolicyStore(_execution_policy_path()),
+        )
+    except Exception:
+        _repair_service = None
+    return _repair_service
+
+
+def _load_application_module(name, fname):
+    import importlib.util as u
+    app_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "src", "application")
+    spec = u.spec_from_file_location(name, os.path.join(app_dir, fname))
+    m = u.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def _get_application_service():
+    global _application_service
+    if _application_service is not None:
+        return _application_service
+    cognitive = _get_cognitive_service()
+    if cognitive is None:
+        return None
+    try:
+        facade_mod = _load_application_module("application_facade", "facade.py")
+        _application_service = facade_mod.ApplicationFacade(
+            cognitive=cognitive,
+            catalog=_get_catalog_service(),
+            storage=_get_storage_service(),
+            repair_service=_get_repair_service(),
+            memory_blocks=lambda: list(_engine_state["memory_store"].blocks),
+            identity_pubkey=lambda: (_identity_status().get("pubkey") or ""),
+            get_peer_registry=_get_peer_registry,
+        )
+    except Exception:
+        _application_service = None
+    return _application_service
+
+
+def _get_cognitive_service():
+    global _cognitive_service
+    if _cognitive_service is not None:
+        return _cognitive_service
+    try:
+        store_mod = _load_cognitive_module("cognitive_commit_store", "commit_store.py")
+        service_mod = _load_cognitive_module("cognitive_service", "service.py")
+        manifest_mod = _load_storage_module("storage_manifest_store", "manifest_store.py")
+        txn_mod = _load_storage_module("storage_publish_txn", "publish_txn.py")
+        chunk_mod = _load_storage_module("storage_chunk_store", "chunk_store.py")
+        storage = _get_storage_service()
+        store = store_mod.CommitStore(_cognitive_store_path())
+        catalog = _get_catalog_service()
+        manifest_store = manifest_mod.ManifestStore(_manifest_store_path())
+        txn_store = txn_mod.PublishTxnStore(_publish_txn_path())
+        chunk_store = chunk_mod.ChunkStore(_chunks_dir()) if storage is None else storage.chunks
+        _cognitive_service = service_mod.CognitiveService(
+            store,
+            catalog_service=catalog,
+            manifest_store=manifest_store,
+            txn_store=txn_store,
+            chunk_store=chunk_store,
+            storage_service=storage,
+        )
+        txn_store.recover(_cognitive_service)
+    except Exception:
+        _cognitive_service = None
+    return _cognitive_service
+
+
+def _manifest_store_path():
+    return os.environ.get("CNEXUS_MANIFEST_FILE", os.path.join(_PERSIST_DIR, "manifests.json"))
+
+
+def _publish_txn_path():
+    return os.environ.get("CNEXUS_PUBLISH_TXN_FILE", os.path.join(_PERSIST_DIR, "publish_txn.json"))
+
+
+def _load_storage_module(name, fname):
+    import importlib.util as u
+    storage_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "src", "storage")
+    spec = u.spec_from_file_location(name, os.path.join(storage_dir, fname))
+    m = u.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
 def _bind_host():
-    return os.environ.get("CNEXUS_BIND_HOST", "127.0.0.1")
+    try:
+        host_mod = _load_network_module("host_config", "host_config.py")
+        return host_mod.resolve_bind_host()
+    except Exception:
+        return os.environ.get("CNEXUS_BIND_HOST", "0.0.0.0")
 
 
 def _public_url():
-    return str(os.environ.get("CNEXUS_PUBLIC_URL", "") or "").strip()
+    try:
+        host_mod = _load_network_module("host_config", "host_config.py")
+        port = int(os.environ.get("CNEXUS_PORT", "7864"))
+        return host_mod.resolve_public_url(port)
+    except Exception:
+        return str(os.environ.get("CNEXUS_PUBLIC_URL", "") or "").strip()
 
 
 def _local_peer_host():
@@ -1412,11 +1597,35 @@ def _start_network_stack():
         cm.start_worker(interval=float(os.environ.get("CNEXUS_CONNECTIVITY_POLL", "120")))
     if dht and cm:
         endpoints = [str(c.get("url") or "") for c in (cm.status().get("candidates") or []) if c.get("url")]
-        announce_host = cm.public_url or f"http://{_bind_host()}:{int(os.environ.get('CNEXUS_PORT', '7864'))}"
+        port = int(os.environ.get("CNEXUS_PORT", "7864"))
+        announce_host = cm.public_url or _public_url() or f"http://127.0.0.1:{port}"
         dht.announce(announce_host, endpoints=endpoints)
         dht.bootstrap()
+        _seed_dht_from_lan(dht, port)
     if gossip and cm:
         gossip.attach_connectivity(cm, fw)
+
+
+def _seed_dht_from_lan(dht, port: int):
+    try:
+        host_mod = _load_network_module("host_config", "host_config.py")
+        lan_mod = _load_network_module("lan_discovery", "lan_discovery.py")
+    except Exception:
+        return
+    if not host_mod.lan_discovery_enabled():
+        return
+
+    def _worker():
+        try:
+            for row in lan_mod.scan_lan_cnexus_nodes(port=port, timeout=0.25):
+                pubkey = str(row.get("pubkey") or "")
+                host = str(row.get("host") or row.get("url") or "")
+                if pubkey and host and hasattr(dht, "_touch_node"):
+                    dht._touch_node(pubkey, host, endpoints=[host])
+        except Exception:
+            pass
+
+    threading.Thread(target=_worker, name="cnexus-lan-seed", daemon=True).start()
 
 
 def _get_peer_registry():
@@ -3613,6 +3822,7 @@ def _init_control_gateway():
                 mutate_memory_store=_state_manager.mutate_memory_store,
                 schedule_persist=_schedule_persist,
                 constitution_dir=lambda: os.path.join(_BASE_DIR, "runtime", "constitution"),
+                foundation_dir=lambda: os.path.join(_BASE_DIR, "runtime", "foundation"),
                 recompile_runtime=lambda force=False: _recompile_runtime(force=force),
                 get_runtime_status=lambda: dict((_engine_state.get("runtime") or {}).get("status") or {}),
             ),
@@ -3707,6 +3917,11 @@ def _init_asset_route_gateway():
                 audit_event=_audit_event,
                 perform_outbound_handshake=_perform_outbound_handshake,
                 local_peer_host=_local_peer_host,
+                get_catalog_service=_get_catalog_service,
+                get_cognitive_service=_get_cognitive_service,
+                get_storage_service=_get_storage_service,
+                get_repair_service=_get_repair_service,
+                get_application_service=_get_application_service,
                 memory_block_count=lambda: len(_engine_state["memory_store"].blocks),
                 trace_count=lambda: len(_engine_state.get("trace", [])),
             ),
@@ -3826,6 +4041,12 @@ def main():
             )
     except Exception as exc:
         _append_runtime_log(f"Foundation 迁移失败 · {exc}", category="control_plane", level="warn")
+    try:
+        foundation_boot = _memory_control_service.bootstrap_foundation()
+        if foundation_boot.get("loaded") or foundation_boot.get("upgraded"):
+            _schedule_persist()
+    except Exception as exc:
+        _append_runtime_log(f"Foundation BOOT 失败 · {exc}", category="control_plane", level="warn")
     _maybe_replay_on_boot()
     identity = _identity_status()
     audit_state = _verify_audit_integrity()

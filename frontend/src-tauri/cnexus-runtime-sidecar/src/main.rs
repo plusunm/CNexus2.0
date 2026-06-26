@@ -197,6 +197,14 @@ fn find_resource_bundle() -> Option<PathBuf> {
     None
 }
 
+fn env_default(key: &str, default: &str) -> (String, String) {
+    let value = std::env::var(key)
+        .ok()
+        .filter(|v| !v.trim().is_empty())
+        .unwrap_or_else(|| default.to_string());
+    (key.into(), value)
+}
+
 fn sidecar_network_env() -> Vec<(String, String)> {
     let ollama_host = std::env::var("OLLAMA_HOST")
         .ok()
@@ -207,6 +215,9 @@ fn sidecar_network_env() -> Vec<(String, String)> {
         ("OLLAMA_HOST".into(), ollama_host),
         ("NO_PROXY".into(), no_proxy.into()),
         ("no_proxy".into(), no_proxy.into()),
+        env_default("CNEXUS_BIND_HOST", "0.0.0.0"),
+        env_default("CNEXUS_AUTO_NETWORK", "1"),
+        env_default("CNEXUS_LAN_DISCOVERY", "1"),
     ]
 }
 

@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Ban, Link2, Users } from "lucide-react";
 import { cnexusProductApi } from "@/lib/api";
+import { parseConnectApplication, type ApplicationConnectSnapshot } from "@/lib/applicationControl";
 import { useCognitiveCopy } from "@/lib/cognitive";
 import { useMindTheme } from "../MindUiProvider";
+import { RepairGatePanel } from "../shared/RepairGatePanel";
 import { SbCard, SbEmptyState, SbSection, SbSettingRow } from "./SbUIKit";
 
 type Props = {
@@ -31,6 +33,7 @@ export function SbPeerConnectPanel({ asPage }: Props) {
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [repairSnapshot, setRepairSnapshot] = useState<ApplicationConnectSnapshot | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -61,9 +64,12 @@ export function SbPeerConnectPanel({ asPage }: Props) {
     setBusy("connect");
     setMessage("");
     setError("");
+    setRepairSnapshot(null);
     try {
-      await cnexusProductApi.connectToPeer(deviceId.trim());
+      const row = await cnexusProductApi.connectToPeer(deviceId.trim());
       setMessage(copy("shareConnectOk"));
+      const appSnapshot = parseConnectApplication(row);
+      if (appSnapshot) setRepairSnapshot(appSnapshot);
       setDeviceId("");
       await refresh();
     } catch (err) {
@@ -119,6 +125,8 @@ export function SbPeerConnectPanel({ asPage }: Props) {
           </button>
         </SbSettingRow>
       </SbCard>
+
+      {repairSnapshot && <RepairGatePanel snapshot={repairSnapshot} onComplete={() => void refresh()} />}
 
       <SbCard padding="sm">
         <div className="flex items-center gap-2 mb-3">

@@ -20,6 +20,7 @@ import {
   type DingTalkConfig,
   type LlmQuickConfig,
 } from "@/lib/floatIntegrations";
+import { applyLlmSyncToStore } from "@/lib/personalChatModel";
 import { useMindStore } from "@/cnexus-kernel";
 import { FloatingMiniDialog } from "./FloatingMiniDialog";
 import { FloatSelect } from "./FloatSelect";
@@ -73,11 +74,10 @@ export function FloatingIntegrationDialogs({ kind, onClose, isDemo }: Props) {
       const online = await isRuntimeReady({ skipWs: true });
       if (online) {
         const result = await syncLlmQuickConfigToRuntime();
-        await useMindStore.getState().refreshModels();
-        if (result.ok && result.testOk && result.modelId) {
-          useMindStore.getState().setSelectedModel(result.modelId);
+        await applyLlmSyncToStore(result);
+        if (result.ok && result.modelId) {
           if (result.modelId === "ollama-local") {
-            setStatus("已切换为 Ollama 本地");
+            setStatus(result.testOk ? "已切换为 Ollama 本地" : "已同步 Ollama — 请确认本机 Ollama 已启动");
           }
         }
         if (!result.ok) {

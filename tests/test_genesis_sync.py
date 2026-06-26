@@ -70,26 +70,30 @@ def main():
 
         import urllib.request as urlrequest
 
-        urlrequest.urlopen = fake_urlopen
+        original_urlopen = urlrequest.urlopen
+        try:
+            urlrequest.urlopen = fake_urlopen
 
-        gossip_b = GossipSync(audit_b, im, None)
-        genesis = GenesisSync(gossip_b, enabled=True, jitter_min=0, jitter_max=0, chunk_size=200)
-        gossip_b.attach_genesis(genesis)
+            gossip_b = GossipSync(audit_b, im, None)
+            genesis = GenesisSync(gossip_b, enabled=True, jitter_min=0, jitter_max=0, chunk_size=200)
+            gossip_b.attach_genesis(genesis)
 
-        result = genesis.genesis_handshake("http://127.0.0.1:9001", peer_pubkey="peer-test")
-        assert result.get("ok"), result
-        assert audit_b.last_hash == audit_a.last_hash
-        assert audit_b.entry_count() == audit_a.entry_count()
+            result = genesis.genesis_handshake("http://127.0.0.1:9001", peer_pubkey="peer-test")
+            assert result.get("ok"), result
+            assert audit_b.last_hash == audit_a.last_hash
+            assert audit_b.entry_count() == audit_a.entry_count()
 
-        score = compute_resilience_score(
-            peer_rows=[{"status": "online", "aligned": True}],
-            local_integrity_ok=True,
-        )
-        assert score["score"] >= 0.5, score
+            score = compute_resilience_score(
+                peer_rows=[{"status": "online", "aligned": True}],
+                local_integrity_ok=True,
+            )
+            assert score["score"] >= 0.5, score
 
-        print("merged:", result.get("status"))
-        print("resilience:", score["score"])
-        print("\nGENESIS SYNC TEST PASSED")
+            print("merged:", result.get("status"))
+            print("resilience:", score["score"])
+            print("\nGENESIS SYNC TEST PASSED")
+        finally:
+            urlrequest.urlopen = original_urlopen
 
 
 if __name__ == "__main__":

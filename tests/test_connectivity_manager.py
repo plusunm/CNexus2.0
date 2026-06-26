@@ -48,8 +48,11 @@ def main():
         assert report.get("path_kind") in ("direct", "unknown"), report
 
         banned = cm.connect_to("ff" * 32)
-        # no node in dht - may fail, that's ok
-        assert "paths" in report
+        assert "paths" in banned
+
+        hint_only = cm.connect_to("cc" * 32, hint_host="http://127.0.0.1:9")
+        assert hint_only.get("ok"), hint_only
+        assert hint_only.get("dht_hit") is False
 
         print("connect:", report.get("url"))
         print("\nCONNECTIVITY MANAGER TEST PASSED")

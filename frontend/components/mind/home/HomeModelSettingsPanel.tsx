@@ -38,6 +38,8 @@ import {
 
 } from "@/lib/floatIntegrations";
 
+import { applyLlmSyncToStore } from "@/lib/personalChatModel";
+
 import { useMindTheme } from "../MindUiProvider";
 
 import { FloatSelect } from "../floating/FloatSelect";
@@ -202,19 +204,25 @@ export function HomeModelSettingsPanel() {
 
       const result = await syncLlmQuickConfigToRuntime();
 
-      await useMindStore.getState().refreshModels();
+      await applyLlmSyncToStore(result);
 
-      if (result.ok && result.testOk && result.modelId) {
-
-        useMindStore.getState().setSelectedModel(result.modelId);
+      if (result.ok && result.modelId) {
 
         setStatus(
 
-          result.modelId === "ollama-local"
+          result.testOk
 
-            ? "已保存并切换为 Ollama 本地 — 可直接聊天（无需 Key）"
+            ? result.modelId === "ollama-local"
 
-            : "已保存并同步到本机网关",
+              ? "已保存并切换为 Ollama 本地 — 可直接聊天（无需 Key）"
+
+              : "已保存并同步到本机网关"
+
+            : result.testDetail
+
+              ? `已保存并同步 — ${result.testDetail}`
+
+              : "已保存并同步 — 连通性将在对话时验证",
 
         );
 

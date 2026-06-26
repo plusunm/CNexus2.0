@@ -119,11 +119,18 @@ class ConnectivityManager:
         self.last_connect_report: Dict[str, Any] = {}
 
     def _local_host_candidate(self) -> dict:
+        try:
+            from network.host_config import resolve_public_url
+        except ImportError:
+            from host_config import resolve_public_url
+        public = self.public_url or resolve_public_url(self.local_port)
+        if public:
+            return {"type": "host", "url": public, "priority": 110}
         if self.bind_host in ("0.0.0.0", "::"):
             host_ip = "127.0.0.1"
         else:
             host_ip = self.bind_host
-        url = self.public_url or f"http://{host_ip}:{self.local_port}"
+        url = f"http://{host_ip}:{self.local_port}"
         return {"type": "host", "url": url, "priority": 100}
 
     def gather_candidates(self, *, refresh_stun: bool = True) -> List[dict]:
@@ -195,6 +202,24 @@ class ConnectivityManager:
         paths.sort(key=lambda p: p.priority, reverse=True)
         return paths
 
+    def _discover_peer_on_lan(self, peer_id: str) -> Optional[dict]:
+        try:
+            from network.host_config import lan_discovery_enabled
+            from network.lan_discovery import find_peer_on_lan
+        except ImportError:
+            from host_config import lan_discovery_enabled
+            from lan_discovery import find_peer_on_lan
+        if not lan_discovery_enabled():
+            return None
+        url = find_peer_on_lan(peer_id, port=self.local_port)
+        if not url:
+            return None
+        if self.dht and hasattr(self.dht, "_touch_node"):
+            self.dht._touch_node(peer_id, url, endpoints=[url])
+        if self.peer_registry:
+            self.peer_registry.save_peer(peer_id, url, status="discovered")
+        return {"pubkey": peer_id, "host": url, "endpoints": [url]}
+
     def ice_negotiation(self, peer_id: str, node: Optional[dict] = None) -> List[ConnectionPath]:
         paths = self._paths_for_peer(peer_id, node)
         for path in paths:
@@ -208,7 +233,7 @@ class ConnectivityManager:
             self._paths[peer_id] = paths
         return paths
 
-    def connect_to(self, peer_id: str) -> dict:
+    def connect_to(self, peer_id: str, *, hint_host: str = "") -> dict:
         if not self.enabled:
             return {"ok": False, "error": "connectivity_disabled"}
         peer_id = str(peer_id or "").strip()
@@ -219,6 +244,17 @@ class ConnectivityManager:
         if self.peer_registry:
             meta = self.peer_registry.get_peer(peer_id) or {}
             status = str(meta.get("status") or "discovered")
+
+        hint_host = _normalize_host(str(hint_host or "").strip())
+        if hint_host and self.peer_registry:
+            existing = self.peer_registry.get_peer(peer_id) or {}
+            if not existing.get("host"):
+                self.peer_registry.save_peer(
+                    peer_id,
+                    hint_host,
+                    status=status if status in ("trusted", "online") else "discovered",
+                )
+
         if self.firewall:
             allowed, reason = self.firewall.allow_connection(peer_id, status=status)
             if not allowed:
@@ -227,6 +263,24 @@ class ConnectivityManager:
                 return report
 
         node = self.dht.find_node(peer_id) if self.dht else None
+        dht_hit = bool(node)
+        discovery_source = "dht" if dht_hit else ""
+        if not node and not hint_host:
+            node = self._discover_peer_on_lan(peer_id)
+            if node:
+                discovery_source = "lan_scan"
+        if hint_host:
+            if not node:
+                node = {
+                    "pubkey": peer_id,
+                    "host": hint_host,
+                    "endpoints": [hint_host],
+                }
+            else:
+                endpoints = list(node.get("endpoints") or [])
+                if hint_host not in endpoints:
+                    endpoints.insert(0, hint_host)
+                node = {**node, "host": hint_host, "endpoints": endpoints}
         paths = self.ice_negotiation(peer_id, node)
         chosen: Optional[ConnectionPath] = None
         for path in paths:
@@ -252,7 +306,9 @@ class ConnectivityManager:
         report: Dict[str, Any] = {
             "ok": bool(chosen),
             "peer_id": peer_id,
-            "dht_hit": bool(node),
+            "dht_hit": dht_hit,
+            "discovery_source": discovery_source or None,
+            "hint_host": hint_host or None,
             "paths": [p.to_dict() for p in paths],
             "nat_type": self._nat_type,
             "at": time.time(),
@@ -273,6 +329,10 @@ class ConnectivityManager:
                 )
         else:
             report["error"] = "no_viable_path"
+            if not dht_hit and discovery_source != "lan_scan":
+                report["hint"] = "peer_offline"
+            elif hint_host and not any(p.get("ok") for p in report["paths"]):
+                report["hint"] = "host_unreachable"
 
         self.last_connect_report = report
         return report

@@ -7,6 +7,12 @@ from typing import Any, Dict
 from urllib import error as urlerror
 from urllib import request as urlrequest
 
+try:
+    from protocol.constants import CNEXUS_PROTOCOL_VERSION, DEFAULT_PERSONAL_CAPABILITY
+except ImportError:
+    CNEXUS_PROTOCOL_VERSION = "3.0"
+    DEFAULT_PERSONAL_CAPABILITY = 0
+
 
 def _normalize_host(host: str) -> str:
     host = (host or "").strip().rstrip("/")
@@ -58,13 +64,20 @@ def perform_outbound_handshake(
         return result
 
     endpoint = f"{host}/api/p2p/handshake"
+    capability = int(getattr(handshake_handler, "capability", DEFAULT_PERSONAL_CAPABILITY))
+    protocol_version = str(getattr(handshake_handler, "protocol_version", CNEXUS_PROTOCOL_VERSION))
+    crypto_suite = str(getattr(handshake_handler, "crypto_suite", "ed25519"))
     try:
         hello = _post_json(
             endpoint,
             {
                 "action": "HELLO",
                 "peer_pubkey": local_pubkey,
+                "peer_id": local_pubkey,
                 "host": local_host,
+                "protocol_version": protocol_version,
+                "capability": capability,
+                "crypto_suite": crypto_suite,
             },
             timeout=timeout,
         )
