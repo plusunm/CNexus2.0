@@ -85,6 +85,7 @@ echo   UI:     http://127.0.0.1:7864
 echo   Status: http://127.0.0.1:7864/api/status
 echo   Log:    %CD%\gateway.log
 echo   Stop:   run stop_cnexus.bat
+echo   Float:  run start_cnexus_desktop.bat  (Tauri desktop bar)
 echo ========================================
 
 start "" http://127.0.0.1:7864

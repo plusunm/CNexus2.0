@@ -117,6 +117,11 @@ export function SbNetworkTopologyPanel({ asPage }: Props) {
             >
               {deviceId || "—"}
             </p>
+            {!deviceId && !loading ? (
+              <p className="text-[11px] mt-1.5 leading-relaxed" style={{ color: t.textLight }}>
+                {copy("shareDeviceIdMissing")}
+              </p>
+            ) : null}
           </div>
           <button
             type="button"

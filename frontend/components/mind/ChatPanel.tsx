@@ -643,7 +643,7 @@ export function ChatPanel({
           </p>
         )}
         {!isDemo && !isPersonalMode() && <ChatModelSelect compact={isFloat} className="mb-2" disabled={inputBlocked} />}
-        {!isSecondBrain && (
+        {!isSecondBrain && !isFloat && (
           <>
             <ChatConverseModeSelect
               value={converseMode}
@@ -661,7 +661,7 @@ export function ChatPanel({
             />
           </>
         )}
-        {isPersonalMode() && converseMode !== "raw" && (
+        {isPersonalMode() && converseMode !== "raw" && !isFloat && (
           <ChatMemoryScopeSelect
             value={memoryScope}
             onChange={setMemoryScope}
@@ -696,6 +696,14 @@ export function ChatPanel({
             }}
             disabled={inputBlocked}
           />
+          {isFloat && isPersonalMode() ? (
+            <ChatPreferencesDropdown
+              disabled={inputBlocked}
+              includeMemoryScope
+              portal
+            />
+          ) : null}
+          {isSecondBrain ? <ChatPreferencesDropdown disabled={inputBlocked} /> : null}
           <button
             type="button"
             className="w-9 h-9 rounded-lg flex items-center justify-center text-white shrink-0 disabled:opacity-50 box-border mb-0.5 transition-transform active:scale-95"
@@ -707,7 +715,6 @@ export function ChatPanel({
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </button>
-          {isSecondBrain && <ChatPreferencesDropdown disabled={inputBlocked} />}
         </div>
         {!isCognitive && !isFloat && (
           <p className="text-[10px] mt-2" style={{ color: t.textLight }}>

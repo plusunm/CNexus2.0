@@ -31,6 +31,35 @@ export const cognitiveCopy = {
     { en: "Switch cognitive interface", zh: "切换认知界面" },
     { en: "Switch cognitive interface", zh: "切换认知界面" },
   ),
+  floatOpenBigWindowSection: copy(
+    { en: "Open full window", zh: "打开大窗口" },
+    { en: "Open full window", zh: "打开大窗口" },
+    { en: "Open full window", zh: "打开大窗口" },
+  ),
+  floatSecondBrainBigWindow: copy(
+    { en: "Second Brain · Full window", zh: "第二大脑 · 大窗口" },
+    { en: "Second Brain · Full window", zh: "第二大脑 · 大窗口" },
+    { en: "Second Brain · Full window", zh: "第二大脑 · 大窗口" },
+  ),
+  floatCognitiveLabBigWindow: copy(
+    { en: "Cognitive Lab · Full window", zh: "认知实验室 · 大窗口" },
+    { en: "Cognitive Lab · Full window", zh: "认知实验室 · 大窗口" },
+    { en: "Cognitive Lab · Full window", zh: "认知实验室 · 大窗口" },
+  ),
+  floatBigWindowFootnote: copy(
+    {
+      en: "Quick chat stays in the float window; open a full window above for the complete UI.",
+      zh: "悬浮窗适合快速对话；第二大脑与认知实验室的完整界面请点上方打开。",
+    },
+    {
+      en: "Quick chat stays in the float window; open a full window above for the complete UI.",
+      zh: "悬浮窗适合快速对话；第二大脑与认知实验室的完整界面请点上方打开。",
+    },
+    {
+      en: "Quick chat stays in the float window; open a full window above for the complete UI.",
+      zh: "悬浮窗适合快速对话；第二大脑与认知实验室的完整界面请点上方打开。",
+    },
+  ),
   switchToLab: copy(
     { en: "Enter Cognitive Lab — see the full cognitive chain", zh: "进入认知实验室 — 可查看完整认知链路" },
     { en: "Open Cognitive Lab", zh: "打开认知实验室" },
@@ -410,6 +439,20 @@ export const cognitiveCopy = {
     { en: "Copy", zh: "复制" },
     { en: "Copy", zh: "Copy" },
   ),
+  shareDeviceIdMissing: copy(
+    {
+      en: "Device ID unavailable — restart CNexus after installing PyNaCl (pip install pynacl).",
+      zh: "设备 ID 未生成 — 请安装 PyNaCl（pip install pynacl）后重启 CNexus。",
+    },
+    {
+      en: "Identity not loaded. Run: pip install pynacl, then restart start_cnexus.bat.",
+      zh: "身份未加载。请运行 pip install pynacl，然后重新双击 start_cnexus.bat。",
+    },
+    {
+      en: "Missing identity pubkey",
+      zh: "缺少设备公钥",
+    },
+  ),
   shareCopied: copy(
     { en: "Copied", zh: "已复制" },
     { en: "Copied", zh: "已复制" },
@@ -516,6 +559,39 @@ export const cognitiveCopy = {
     { en: "Search every reachable node on the mesh", zh: "搜索网络中所有可发现的节点" },
     { en: "DHT + discovered peers", zh: "DHT 与发现节点" },
     { en: "Full mesh search", zh: "Full mesh search" },
+  ),
+  shareMemoryFlowGraphTitle: copy(
+    { en: "Memory flow graph", zh: "记忆流图" },
+    { en: "Memory flow graph", zh: "记忆流图" },
+    { en: "Memory flow graph", zh: "记忆流图" },
+  ),
+  shareMemoryFlowGraphHint: copy(
+    {
+      en: "Switch scope to view local, group, or network-wide memory topology.",
+      zh: "切换记忆范围，查看本机、组群或全网记忆因子网络。",
+    },
+    {
+      en: "Switch scope to view local, group, or network-wide memory topology.",
+      zh: "切换记忆范围，查看本机、组群或全网记忆因子网络。",
+    },
+    {
+      en: "Switch scope to view local, group, or network-wide memory topology.",
+      zh: "切换记忆范围，查看本机、组群或全网记忆因子网络。",
+    },
+  ),
+  shareMemoryFlowGraphEmpty: copy(
+    {
+      en: "No memory nodes in this scope yet — chat, upload, or search to populate.",
+      zh: "当前范围暂无记忆节点，对话、上传或搜索后会在此显示。",
+    },
+    {
+      en: "No memory nodes in this scope yet — chat, upload, or search to populate.",
+      zh: "当前范围暂无记忆节点，对话、上传或搜索后会在此显示。",
+    },
+    {
+      en: "No memory nodes in this scope yet — chat, upload, or search to populate.",
+      zh: "当前范围暂无记忆节点，对话、上传或搜索后会在此显示。",
+    },
   ),
   shareOriginLocal: copy(
     { en: "Local", zh: "本机" },

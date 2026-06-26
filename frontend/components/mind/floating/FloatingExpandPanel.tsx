@@ -6,8 +6,9 @@ import { FloatingMemChatPanel } from "./FloatingMemChatPanel";
 import { FloatingUploadPanel } from "./FloatingUploadPanel";
 import { useFloatingBarStore } from "@/lib/floatingBarStore";
 import { FloatingCognitiveHints } from "./FloatingCognitiveHints";
-import { isFloatPersonalEdition } from "@/lib/floatPersonal";
 import { ExperienceTierSwitch } from "@/lib/cognitive";
+import { isFloatPersonalEdition } from "@/lib/floatPersonal";
+import { FloatExperienceTierBar } from "./FloatExperienceTierBar";
 import { useMindTheme } from "../MindUiProvider";
 import type { FloatPanel } from "@/lib/floatingBarStorage";
 
@@ -27,7 +28,7 @@ export function FloatingExpandPanel({ panel }: Props) {
         className="px-3 pt-2 pb-1 border-b shrink-0"
         style={{ borderColor: t.border }}
       >
-        <ExperienceTierSwitch compact />
+        {personal ? <FloatExperienceTierBar /> : <ExperienceTierSwitch compact />}
       </div>
       {showCognitiveHints && <FloatingCognitiveHints />}
       <div

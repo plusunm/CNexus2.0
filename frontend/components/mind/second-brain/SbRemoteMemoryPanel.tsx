@@ -8,8 +8,8 @@ import { useMindTheme } from "../MindUiProvider";
 import { SbCard, SbEmptyState, SbSection, SbSegment } from "./SbUIKit";
 
 import type { CopyKey } from "@/lib/cognitive/projection/copyLexicon";
-
-type MemoryScope = "local" | "trusted" | "network";
+import type { MemoryScope } from "@/lib/memoryScope";
+import { useSyncMemoryScope } from "@/hooks/useSyncMemoryScope";
 
 type MemoryHit = {
   kind?: string;
@@ -30,6 +30,10 @@ type MemoryHit = {
 
 type Props = {
   asPage?: boolean;
+  scope?: MemoryScope;
+  onScopeChange?: (scope: MemoryScope) => void;
+  /** Hide segment when parent provides unified scope control (e.g. share-memory graph). */
+  hideScopeSelector?: boolean;
 };
 
 function originLabel(origin: MemoryHit["memory_origin"], copy: (key: CopyKey) => string) {
@@ -38,10 +42,17 @@ function originLabel(origin: MemoryHit["memory_origin"], copy: (key: CopyKey) =>
   return copy("shareOriginLocal");
 }
 
-export function SbRemoteMemoryPanel({ asPage }: Props) {
+export function SbRemoteMemoryPanel({
+  asPage,
+  scope: scopeProp,
+  onScopeChange,
+  hideScopeSelector = false,
+}: Props) {
   const t = useMindTheme();
   const { t: copy } = useCognitiveCopy();
-  const [scope, setScope] = useState<MemoryScope>("local");
+  const [syncedScope, setSyncedScope] = useSyncMemoryScope();
+  const scope = scopeProp ?? syncedScope;
+  const setScope = onScopeChange ?? setSyncedScope;
   const [semantic, setSemantic] = useState(true);
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<MemoryHit[]>([]);
@@ -102,19 +113,27 @@ export function SbRemoteMemoryPanel({ asPage }: Props) {
 
   const body = (
     <SbCard accent="purple">
-      <SbSegment
-        value={scope}
-        tone="teal"
-        onChange={setScope}
-        options={[
-          { id: "local", label: copy("shareScopeLocal"), hint: copy("shareScopeLocalHint") },
-          { id: "trusted", label: copy("shareScopeTrusted"), hint: copy("shareScopeTrustedHint") },
-          { id: "network", label: copy("shareScopeNetwork"), hint: copy("shareScopeNetworkHint") },
-        ]}
-      />
-      <p className="text-[11px] mt-2 mb-3 leading-relaxed" style={{ color: t.textMuted }}>
-        {scopeHint}
-      </p>
+      {!hideScopeSelector ? (
+        <>
+          <SbSegment
+            value={scope}
+            tone="teal"
+            onChange={setScope}
+            options={[
+              { id: "local", label: copy("shareScopeLocal"), hint: copy("shareScopeLocalHint") },
+              { id: "trusted", label: copy("shareScopeTrusted"), hint: copy("shareScopeTrustedHint") },
+              { id: "network", label: copy("shareScopeNetwork"), hint: copy("shareScopeNetworkHint") },
+            ]}
+          />
+          <p className="text-[11px] mt-2 mb-3 leading-relaxed" style={{ color: t.textMuted }}>
+            {scopeHint}
+          </p>
+        </>
+      ) : (
+        <p className="text-[11px] mb-3 leading-relaxed" style={{ color: t.textMuted }}>
+          {scopeHint}
+        </p>
+      )}
 
       <label className="flex items-center gap-2 text-xs mb-3" style={{ color: t.textMuted }}>
         <input type="checkbox" checked={semantic} onChange={(e) => setSemantic(e.target.checked)} />

@@ -52,5 +52,8 @@ export function secondBrainNavMeta(tab: SecondBrainTab) {
 
 /** Wider layout for topology-heavy pages. */
 export function secondBrainTabMaxWidth(tab: SecondBrainTab): string {
-  return tab === "network" || tab === "memory" ? "960px" : "720px";
+  if (tab === "network" || tab === "memory" || tab === "share-memory") {
+    return "min(100%, 1200px)";
+  }
+  return "720px";
 }

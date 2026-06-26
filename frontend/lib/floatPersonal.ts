@@ -22,3 +22,8 @@ export function personalMainUiUrl(): string {
   }
   return `http://127.0.0.1:${CNEXUS2_GATEWAY_PORT}/`;
 }
+
+/** Full observability / cognitive lab dashboard route (Tauri + static export). */
+export function personalLabUiUrl(): string {
+  return "/shell?layout=overview&view=debugger";
+}

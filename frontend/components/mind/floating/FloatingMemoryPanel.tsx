@@ -1,27 +1,28 @@
 "use client";
 
-import { useMemo, useRef } from "react";
-import { GitBranch } from "lucide-react";
-import { useMindOverview } from "@/cnexus-kernel";
+import { useRef } from "react";
 import { useFloatFactorGraphFrame } from "@/hooks/useFloatFactorGraphFrame";
-import { buildFactorGraph } from "@/lib/factorGraphModel";
-import { floatTy } from "@/lib/floatTypography";
 import { useFloatingBarStore } from "@/lib/floatingBarStore";
-import { bi, floatL } from "@/lib/spine/labels";
+import { useSyncMemoryScope } from "@/hooks/useSyncMemoryScope";
 import { useMindTheme } from "../MindUiProvider";
-import { GraphViewCanvas } from "../home/GraphViewCanvas";
+import { ScopedMemoryFlowGraph3D } from "../shared/ScopedMemoryFlowGraph3D";
 import { FloatTokenStrip, useFloatTokenTraces } from "./FloatTokenStrip";
 
-/** 悬浮窗记忆页 — 上：因子词网络（与大窗 GraphView 同源）；下：Token 消耗 */
+/** 悬浮窗记忆页 — 力导向记忆流图（与大窗同源）+ 记忆范围 + Token 消耗 */
 export function FloatingMemoryPanel() {
   const t = useMindTheme();
   const stage = useFloatingBarStore((s) => s.stage);
   const sessionEpoch = useFloatingBarStore((s) => s.sessionEpoch);
   const panelRef = useRef<HTMLDivElement>(null);
   const frame = useFloatFactorGraphFrame(stage, panelRef);
-  const { overview } = useMindOverview();
-  const factorGraph = useMemo(() => buildFactorGraph(overview), [overview]);
+  const [scope, setScope] = useSyncMemoryScope();
   const token = useFloatTokenTraces();
+
+  const scopeChrome = 92;
+  const graphFrame = {
+    width: frame.graphWidth,
+    height: Math.max(120, frame.graphHeight - scopeChrome),
+  };
 
   return (
     <div
@@ -31,38 +32,17 @@ export function FloatingMemoryPanel() {
         backgroundColor: t.surface,
         borderColor: t.border,
         display: "grid",
-        gridTemplateRows: `auto ${frame.graphSlotHeight}px minmax(${frame.tokenAreaHeight}px, 1fr)`,
+        gridTemplateRows: `${frame.graphSlotHeight + scopeChrome}px minmax(${frame.tokenAreaHeight}px, 1fr)`,
       }}
       data-cnexus-float-memory
     >
-      <div
-        className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 border-b"
-        style={{ borderColor: t.border }}
-        data-cnexus-float-factor-header
-        data-no-drag
-      >
-        <GitBranch className="w-3.5 h-3.5" style={{ color: t.purple }} />
-        <span className={floatTy.label} style={{ color: t.text }}>
-          {bi(floatL.factorGraph)}
-        </span>
-        <span className={`${floatTy.mono} ml-auto`} style={{ color: t.textMuted }}>
-          {factorGraph.nodes.length}
-        </span>
-      </div>
-
-      <div
-        className="shrink-0 w-full min-w-0 overflow-hidden px-2 pt-2 pb-1"
-        style={{ height: frame.graphSlotHeight }}
-        data-no-drag
-        data-cnexus-float-factor-graph
-      >
-        <GraphViewCanvas
-          graph={factorGraph}
-          compact
-          layoutKey={`${stage}-${sessionEpoch}`}
-          frame={{ width: frame.graphWidth, height: frame.graphHeight }}
-        />
-      </div>
+      <ScopedMemoryFlowGraph3D
+        variant="float"
+        scope={scope}
+        onScopeChange={setScope}
+        layoutKey={`${stage}-${sessionEpoch}-${scope}`}
+        frame={graphFrame}
+      />
 
       <div className="min-h-0 flex flex-col overflow-hidden" style={{ minHeight: frame.tokenAreaHeight }}>
         <FloatTokenStrip

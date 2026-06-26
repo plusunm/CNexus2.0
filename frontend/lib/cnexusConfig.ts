@@ -63,5 +63,8 @@ export async function initCnexusConfig(): Promise<void> {
     clearTimeout(timer);
     const edition = resolveEdition(configEdition, loadStoredEdition());
     setEdition(edition);
+    if (!apiBase && edition === "personal") {
+      setCnexusEndpoints("http://127.0.0.1:7864");
+    }
   }
 }

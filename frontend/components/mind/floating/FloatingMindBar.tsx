@@ -276,7 +276,8 @@ export function FloatingMindBar({ desktop = false }: { desktop?: boolean }) {
 
   const handleOpenDashboard = useCallback(() => {
     setPinned(false);
-    void openTauriDashboard();
+    const route = isFloatPersonalEdition() ? "/" : undefined;
+    void openTauriDashboard(route ?? "/shell?layout=overview");
   }, [setPinned]);
 
   const handleOpenOverview = useCallback(() => {
@@ -324,7 +325,7 @@ export function FloatingMindBar({ desktop = false }: { desktop?: boolean }) {
         {
           id: "dashboard",
           label: personal ? "打开主界面" : "打开大屏窗口",
-          onClick: () => runMenuAction("dashboard", () => openTauriDashboard()),
+          onClick: () => runMenuAction("dashboard", handleOpenDashboard),
         },
         {
           id: "hide",
@@ -354,7 +355,7 @@ export function FloatingMindBar({ desktop = false }: { desktop?: boolean }) {
       });
     }
     return items;
-  }, [setStage, handleOpenOverview, openIntegrationDialog, openConnectionPanel, runMenuAction]);
+  }, [setStage, handleOpenOverview, handleOpenDashboard, openIntegrationDialog, openConnectionPanel, runMenuAction]);
 
   const onDockPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {

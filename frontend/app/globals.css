@@ -93,6 +93,11 @@ body.cnexus-desktop main {
   overflow: hidden;
 }
 
+.cnexus-float-shell-expanded > :first-child {
+  overflow: visible;
+  z-index: 30;
+}
+
 .cnexus-float-shell-expanded > * {
   min-height: 0;
   min-width: 0;

@@ -516,6 +516,8 @@ export function statusToMindOverview(
       activity: item.activity ?? item.score,
       is_active: item.is_active,
       node_type: item.node_type,
+      source_peer: item.source_peer,
+      memory_origin: item.memory_origin,
     }));
   }
   if (statusResponse.wormhole_links && statusResponse.wormhole_links.length > 0) {

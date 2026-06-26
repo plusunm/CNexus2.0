@@ -43,7 +43,7 @@
     "build:tauri": "cross-env CNEXUS_RELEASE=1 node scripts/write-cnexus-config.mjs personal && cross-env CNEXUS_TAURI=1 CNEXUS_RELEASE=1 next build",
     "bundle:runtime": "npm run kill:cnexus && powershell -ExecutionPolicy Bypass -File ../../scripts/bundle-runtime-for-desktop.ps1",
     "build:desktop": "npm run bundle:runtime && npm run build:tauri",
-    "build:personal": "node scripts/write-cnexus-config.mjs personal && cross-env CNEXUS_TAURI=1 next build && node scripts/sync-ui-export.mjs",
+    "build:personal": "cross-env CNEXUS_TAURI=1 node scripts/write-cnexus-config.mjs personal && cross-env CNEXUS_TAURI=1 next build && node scripts/sync-ui-export.mjs",
     "build:enterprise": "node scripts/write-cnexus-config.mjs enterprise && cross-env CNEXUS_TAURI=1 next build",
     "dev:ui": "node scripts/write-cnexus-config.mjs && next dev -p 3000",
     "dev:desktop": "powershell -ExecutionPolicy Bypass -File ../scripts/dev-desktop.ps1 -Mode tauri",

@@ -10,6 +10,9 @@ from typing import Any, Dict, Optional, Tuple
 import nacl.encoding
 import nacl.signing
 
+# Ed25519 seed is always 32 bytes; PyNaCl 1.6+ removed SigningKey.SEED_SIZE.
+_IDENTITY_SEED_SIZE = 32
+
 
 class IdentityManager:
     """Local sovereign identity anchor (Ed25519 via PyNaCl)."""
@@ -23,7 +26,7 @@ class IdentityManager:
     def _load_or_create_identity(self) -> nacl.signing.SigningKey:
         if self.storage_path.exists():
             seed = self.storage_path.read_bytes()
-            if len(seed) != nacl.signing.SigningKey.SEED_SIZE:
+            if len(seed) != _IDENTITY_SEED_SIZE:
                 raise ValueError(f"invalid identity seed size: {len(seed)}")
             return nacl.signing.SigningKey(seed)
         signing_key = nacl.signing.SigningKey.generate()

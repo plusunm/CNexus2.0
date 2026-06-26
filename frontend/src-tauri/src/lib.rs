@@ -372,6 +372,7 @@ pub fn run() {
                 boot_trace::trace("setup: shortcuts ok");
             }
             boot_sequence::schedule_absolute_float_safety_net(app.handle().clone());
+            boot_sequence::schedule_startup_float(app.handle().clone());
             boot_trace::trace("setup: complete");
             emit_boot_session(app.handle());
             Ok(())

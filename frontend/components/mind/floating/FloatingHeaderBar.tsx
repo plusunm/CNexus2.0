@@ -241,7 +241,7 @@ export function FloatingHeaderBar({
             items={brandMenuItems}
             anchor={gripMenuRef.current?.getBoundingClientRect() ?? null}
             onClose={closeBrandMenu}
-            placement={isTauriDesktop() ? "panel" : "portal"}
+            placement="portal"
           />
         )}
       </div>

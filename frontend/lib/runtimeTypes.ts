@@ -46,6 +46,9 @@ export type MindOverviewMemoryItem = {
   activity?: number;
   is_active?: boolean;
   node_type?: string;
+  /** Federated origin — empty means local-only memory */
+  source_peer?: string;
+  memory_origin?: "local" | "trusted" | "network";
 };
 
 export type MindOverviewProjectionLink = {

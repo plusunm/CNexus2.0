@@ -23,6 +23,8 @@ type Props = {
   /** Explicit pixel frame from float layout calculator */
   frame?: { width: number; height: number };
   settingsPreset?: GraphViewSettings;
+  /** Full-size shell height CSS — default min(68vh, 600px) */
+  shellHeight?: string;
 };
 
 const COMPACT_CANVAS_BG = "#0B0F1A";
@@ -44,7 +46,7 @@ function nodeRadius(weight: number, sizeMul: number): number {
 }
 
 /** Obsidian 式 Graph view — 力导向球状网络 + 外环 */
-export function GraphViewCanvas({ graph, compact, className, layoutKey, frame, settingsPreset }: Props) {
+export function GraphViewCanvas({ graph, compact, className, layoutKey, frame, settingsPreset, shellHeight }: Props) {
   const theme = useMindTheme();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -446,19 +448,22 @@ export function GraphViewCanvas({ graph, compact, className, layoutKey, frame, s
     );
   }
 
+  const panelHeight = shellHeight ?? "min(68vh, 600px)";
+  const controlsWidth = `min(480px, calc(${panelHeight} * 0.75))`;
+
   return (
     <div
       className="graph-view-shell grid w-full min-w-0 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_var(--graph-controls-w)] rounded-xl border overflow-hidden h-auto lg:h-[var(--graph-panel-h)]"
       style={{
         borderColor: theme.border,
-        ["--graph-panel-h" as string]: "min(68vh, 600px)",
-        ["--graph-controls-w" as string]: "min(480px, calc(min(68vh, 600px) * 0.75))",
+        ["--graph-panel-h" as string]: panelHeight,
+        ["--graph-controls-w" as string]: controlsWidth,
       }}
     >
       <div
         ref={containerRef}
-        className="relative min-w-0 min-h-0 w-full h-[min(52vh,480px)] lg:h-full"
-        style={{ backgroundColor: theme.bg }}
+        className="relative min-w-0 min-h-0 w-full lg:h-full"
+        style={{ backgroundColor: theme.bg, minHeight: panelHeight }}
       >
         <div className="absolute top-4 left-4 z-10 pointer-events-none">
           <p className="text-lg font-semibold" style={{ color: theme.text }}>
