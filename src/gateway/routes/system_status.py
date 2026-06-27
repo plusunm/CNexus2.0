@@ -36,6 +36,7 @@ class SystemStatusRouteHandler:
         scratch_status_fn: Callable[[], Dict[str, Any]] | None = None,
         install_stats_status_fn: Callable[[], Dict[str, Any]] | None = None,
         share_stats_status_fn: Callable[[], Dict[str, Any]] | None = None,
+        update_check_fn: Callable[[bool], Dict[str, Any]] | None = None,
     ):
         self._probe = probe
         self._subsystems = subsystems
@@ -50,6 +51,7 @@ class SystemStatusRouteHandler:
         self._scratch_status_fn = scratch_status_fn
         self._install_stats_status_fn = install_stats_status_fn
         self._share_stats_status_fn = share_stats_status_fn
+        self._update_check_fn = update_check_fn
 
     def handle_get(self, path: str, query: Optional[str]) -> Optional[HttpRouteResponse]:
         qs = parse_qs(query or "")
@@ -100,6 +102,10 @@ class SystemStatusRouteHandler:
 
         if path == "/api/share/stats" and self._share_stats_status_fn is not None:
             return HttpRouteResponse.json(self._share_stats_status_fn())
+
+        if path == "/api/update/check" and self._update_check_fn is not None:
+            refresh = (qs.get("refresh") or [""])[0].lower() in ("1", "true", "yes")
+            return HttpRouteResponse.json(self._update_check_fn(refresh))
 
         if path == "/api/connectivity/status":
             return HttpRouteResponse.json({"ok": True, "network": self._network.build()})

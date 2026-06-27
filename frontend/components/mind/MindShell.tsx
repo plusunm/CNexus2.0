@@ -15,6 +15,8 @@ import { useFloatingBarStore } from "@/lib/floatingBarStore";
 import { FLOAT_SHORTCUT_HINT_TAURI, FLOAT_SHORTCUT_HINT_WEB } from "@/lib/floatWindowSpec";
 import { SecurityBootstrapGate } from "@/components/desktop/SecurityBootstrapGate";
 import { isTauriDesktop } from "@/lib/tauriDesktop";
+import { useUpdateCheck } from "@/lib/useUpdateCheck";
+import { UpdateAvailableBanner } from "./UpdateAvailableBanner";
 
 export type MindShellProps = {
   layout?: ShellLayout;
@@ -33,6 +35,7 @@ export function MindShell({
   const { isSecondBrain } = useExperience();
   const openPanel = useFloatingBarStore((s) => s.openPanel);
   const setStage = useFloatingBarStore((s) => s.setStage);
+  const updateCheck = useUpdateCheck(Boolean(preference));
 
   useEffect(() => {
     if (desktop) return;
@@ -99,6 +102,13 @@ export function MindShell({
         data-ui-mode="float"
         data-connection-mode={preference}
       >
+        {updateCheck.showBanner && updateCheck.status ? (
+          <UpdateAvailableBanner
+            status={updateCheck.status}
+            compact={desktop}
+            onDismiss={updateCheck.dismiss}
+          />
+        ) : null}
         {!desktop && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-30">
             <p className="text-sm" style={{ color: theme.textMuted }}>
@@ -124,6 +134,9 @@ export function MindShell({
       data-ui-mode={layout}
       data-connection-mode={preference}
     >
+      {updateCheck.showBanner && updateCheck.status ? (
+        <UpdateAvailableBanner status={updateCheck.status} onDismiss={updateCheck.dismiss} />
+      ) : null}
       {layout === "cognitive" ? (
         <CognitiveMindLayout />
       ) : isSecondBrain ? (

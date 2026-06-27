@@ -1049,6 +1049,28 @@ def _schedule_install_stats_ping():
     except Exception:
         pass
 
+
+def _update_check_module():
+    return _load_core_module("update_check", "update_check.py")
+
+
+def _update_check_status(force: bool = False):
+    return _update_check_module().public_status(
+        _PERSIST_DIR,
+        current_version=_APP_VERSION,
+        force=bool(force),
+    )
+
+
+def _schedule_update_check():
+    try:
+        _update_check_module().schedule_startup_check(
+            _PERSIST_DIR,
+            current_version=_APP_VERSION,
+        )
+    except Exception:
+        pass
+
 _identity_lock = threading.Lock()
 _identity_manager = None
 _identity_load_error = ""
@@ -4021,6 +4043,7 @@ def _init_status_routes_gateway():
         scratch_status_fn=_scratch_status,
         install_stats_status_fn=_install_stats_status,
         share_stats_status_fn=_share_stats_status,
+        update_check_fn=_update_check_status,
     )
 
 
@@ -4420,6 +4443,7 @@ def main():
     _start_rem_watchdog()
     _start_peer_heartbeat()
     _schedule_install_stats_ping()
+    _schedule_update_check()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

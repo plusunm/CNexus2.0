@@ -848,6 +848,26 @@ export type InstallStatsStatus = {
   error?: string;
 };
 
+export type UpdateCheckStatus = {
+  ok?: boolean;
+  enabled?: boolean;
+  update_available?: boolean;
+  current_version?: string;
+  latest_version?: string;
+  tag_name?: string;
+  release_name?: string;
+  release_url?: string;
+  release_notes?: string;
+  published_at?: string | null;
+  source?: string;
+  repo?: string;
+  checked_at?: number;
+  cached?: boolean;
+  stale?: boolean;
+  error?: string | null;
+  skipped?: string;
+};
+
 export type ShareStatsStatus = {
   ok?: boolean;
   sharing_enabled?: boolean;
@@ -1902,6 +1922,15 @@ export const cnexusProductApi = {
     const data = (await resp.json().catch(() => ({}))) as InstallStatsStatus;
     if (!resp.ok || data.ok === false) {
       throw new Error("Install stats status unavailable");
+    }
+    return data;
+  },
+  fetchUpdateCheck: async (refresh = false) => {
+    const qs = refresh ? "?refresh=1" : "";
+    const resp = await fetch(`${getApiBase()}/api/update/check${qs}`, { cache: "no-store" });
+    const data = (await resp.json().catch(() => ({}))) as UpdateCheckStatus;
+    if (!resp.ok || data.ok === false) {
+      throw new Error(String(data.error || "Update check unavailable"));
     }
     return data;
   },

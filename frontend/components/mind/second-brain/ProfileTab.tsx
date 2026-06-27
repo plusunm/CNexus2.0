@@ -6,6 +6,7 @@ import { useCognitiveCopy } from "@/lib/cognitive";
 import { useMindTheme } from "../MindUiProvider";
 import { LanguageProjectionSwitch } from "../LanguageProjectionSwitch";
 import { InstallStatsOptInPanel } from "../InstallStatsOptInPanel";
+import { UpdateCheckPanel } from "../UpdateCheckPanel";
 import { OllamaConnectionBadge } from "../OllamaConnectionBadge";
 import { SbSection, SbCard } from "./SbUIKit";
 import { isPersonalMode } from "@/lib/personalGuard";
@@ -46,6 +47,8 @@ export function ProfileTab() {
       </SbSection>
 
       <InstallStatsOptInPanel />
+
+      <UpdateCheckPanel />
 
       <SbSection title={copy("appearanceSection")} icon={Globe}>
         <SbCard padding="sm">

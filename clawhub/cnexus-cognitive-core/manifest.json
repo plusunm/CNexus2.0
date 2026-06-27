@@ -1,12 +1,12 @@
 {
   "id": "cnexus-cognitive-core",
   "name": "CNexus 2.0 Personal Cognitive OS",
-  "version": "2.2.0",
-  "description": "Local personal second brain — 6-step loop, memory graph, JSON persistence, one-click clear. Stdlib Python gateway + static UI.",
+  "version": "2.4.0",
+  "description": "Local personal second brain — chat with memory recall, document ingest, memory flow graph, federated share across trusted devices, 6-step cognitive loop, REM consolidation, Windows installer.",
   "author": "plusunm",
   "homepage": "https://github.com/plusunm/CNexus2.0",
   "repository": "https://github.com/plusunm/CNexus2.0",
   "license": "MIT",
   "type": "application",
-  "tags": ["cognitive", "memory", "local-first", "second-brain"]
+  "tags": ["cognitive", "memory", "local-first", "second-brain", "p2p", "share", "personal-ai"]
 }
