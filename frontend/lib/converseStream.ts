@@ -2,6 +2,13 @@ import { getApiBase } from "./cnexusConfig";
 import type { ConverseMode } from "./converseMode";
 import type { MemoryScope } from "./memoryScope";
 import type { ThinkingMode } from "./thinkingMode";
+import { expertConverseFields, type ExpertStyleSource } from "./expertDistillMode";
+
+export type ConverseExpertOptions = {
+  expertDistillEnabled?: boolean;
+  expertMode?: string;
+  expertStyleSource?: ExpertStyleSource;
+};
 
 export type ConverseStreamDone = {
   ok?: boolean;
@@ -52,6 +59,7 @@ export async function converseStreamPersonal(
   converseMode: ConverseMode = "fast",
   thinkingMode: ThinkingMode = "precision",
   memoryScope: MemoryScope = "local",
+  expert?: ConverseExpertOptions,
 ): Promise<ConverseStreamDone | null> {
   const body: Record<string, unknown> = {
     text,
@@ -59,6 +67,11 @@ export async function converseStreamPersonal(
     converse_mode: converseMode,
     thinking_mode: thinkingMode,
     memory_scope: memoryScope,
+    ...expertConverseFields(
+      expert?.expertDistillEnabled,
+      expert?.expertMode,
+      expert?.expertStyleSource ?? "prompt",
+    ),
   };
   if (modelId && modelId !== "cnexus-local") {
     body.model_id = modelId;

@@ -752,6 +752,7 @@ _peer_mesh_service = None
 _asset_gateway_service = None
 _auth_gate = None
 _status_routes = None
+_expert_routes = None
 _asset_routes = None
 _peer_routes = None
 _control_routes = None
@@ -849,6 +850,85 @@ def _compose_llm_context(memory_context: str = "") -> str:
         mem = build_memory_layer_preamble() + "\n" + mem
     parts = [part for part in (runtime, scratch, mem) if part]
     return "\n\n---\n\n".join(parts)
+
+
+_scp_plane = None
+
+
+def _scp_enabled() -> bool:
+    try:
+        from semantic.scp import scp_enabled
+
+        return scp_enabled()
+    except Exception:
+        return False
+
+
+def _get_scp_plane():
+    global _scp_plane
+    if _scp_plane is None:
+        from semantic.scp import SemanticControlPlane
+
+        _scp_plane = SemanticControlPlane()
+    return _scp_plane
+
+
+def _scp_admit_turn(input_text: str, activation_context: str, profile: dict):
+    from semantic.types import SCPRequest, TurnProfile
+
+    scp = _get_scp_plane()
+    budget = scp.load_budget_state()
+    turn_profile = TurnProfile(
+        thinking_mode=str(profile.get("thinking_mode") or "precision"),
+        converse_mode=str(profile.get("mode") or profile.get("converse_mode") or "fast"),
+        memory_scope=str(profile.get("memory_scope") or "local"),
+        expert_mode=profile.get("expert_mode"),
+        style_source=str(profile.get("expert_style_source") or profile.get("style_source") or "prompt"),
+    )
+
+    recall_candidates = []
+    prompt_candidates = []
+    fact_hits = 0
+    if turn_profile.expert_mode:
+        try:
+            from plugins.expert_distill.producer import ExpertCandidateProducer, expert_distill_enabled
+
+            if expert_distill_enabled():
+                producer = ExpertCandidateProducer()
+                recall_candidates, prompt_candidates, fact_hits = producer.produce(
+                    list(_engine_state["memory_store"].blocks),
+                    query=str(input_text or ""),
+                    subject_id=str(turn_profile.expert_mode),
+                    style_source=turn_profile.style_source,
+                )
+        except Exception:
+            pass
+
+    request = SCPRequest(
+        query=str(input_text or ""),
+        turn_profile=turn_profile,
+        activation_context=str(activation_context or ""),
+        recall_candidates=recall_candidates,
+        prompt_candidates=prompt_candidates,
+        budget_state=budget,
+        compose_llm_context=_compose_llm_context,
+        fact_hits=fact_hits,
+    )
+    response = scp.admit(request)
+    _engine_state["semantic_budget"] = response.budget_state.to_dict()
+    _engine_state["semantic_drift"] = {
+        "triggers": list(response.observation.triggers),
+        "dual_path_risk": bool(response.observation.dual_path_risk),
+        "entanglement_score": float(response.observation.entanglement_score),
+        "cross_path_overlap_ratio": float(response.observation.cross_path_overlap_ratio),
+    }
+    if response.correction is not None:
+        _engine_state["semantic_budget_correction"] = {
+            "trigger_id": response.correction.trigger_id,
+            "level": response.correction.level,
+            "style_source_override": response.correction.style_source_override,
+        }
+    return response
 
 
 def _recompile_runtime(*, force: bool = False):
@@ -1426,6 +1506,22 @@ def _get_application_service():
     except Exception:
         _application_service = None
     return _application_service
+
+
+def _bootstrap_share_local_memory():
+    """Default ON — publish local BlockStore to catalog so peers can discover/repair."""
+    try:
+        share_mod = _load_application_module("application_share_boot", "share_boot.py")
+        app = _get_application_service()
+        identity = _identity_status()
+        report = share_mod.bootstrap_share_local_memory(
+            app,
+            memory_blocks=list(_engine_state["memory_store"].blocks),
+            identity_pubkey=str(identity.get("pubkey") or ""),
+        )
+        return report
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
 
 
 def _get_cognitive_service():
@@ -2807,6 +2903,22 @@ def _init_audit_emitter_gateway():
     _audit_emitter = AuditEmitter(AuditEmitterHooks(audit_event=_audit_event))
 
 
+def _store_fn_guarded(response, state, iteration_meta, block_store):
+    result = store_fn(response, state, iteration_meta, block_store)
+    if _scp_enabled():
+        try:
+            from semantic.anti_loop import apply_antiloop_after_store
+
+            apply_antiloop_after_store(
+                block_store,
+                _engine_state.get("semantic_turn"),
+                iteration_meta,
+            )
+        except Exception:
+            pass
+    return result
+
+
 def _init_turn_persistence_gateway():
     global _turn_persistence_service
     from gateway.services.conversation_scratch import append_scratch_turn
@@ -2814,7 +2926,7 @@ def _init_turn_persistence_gateway():
     _turn_persistence_service = TurnPersistenceService(
         _state_manager,
         TurnPersistenceHooks(
-            store=store_fn,
+            store=_store_fn_guarded,
             reflect=reflect_fn,
             sign_record=_sign_record,
             record_cycle_gtbs=_record_cycle_gtbs,
@@ -2881,6 +2993,7 @@ def _init_converse_gateway():
         speech_text=speech_text,
         persist_turn=_turn_persistence_service.commit_turn,
         fast_converse=_CNEXUS_FAST_CONVERSE,
+        scp_admit=_scp_admit_turn if _scp_enabled() else None,
     )
     pipeline = CognitivePipeline(_state_manager, deps)
     _converse_service = ConverseService(_state_manager, pipeline)
@@ -3297,7 +3410,7 @@ def _asset_embed_enabled():
 
 
 def _asset_peer_push_enabled():
-    return os.environ.get("CNEXUS_ASSET_PEER_PUSH", "0").lower() in ("1", "true", "yes")
+    return os.environ.get("CNEXUS_ASSET_PEER_PUSH", "1").lower() in ("1", "true", "yes")
 
 
 def _asset_peer_pull_enabled():
@@ -3958,6 +4071,42 @@ def _init_gateway_intent_gateway():
     _gateway_intent_service = GatewayIntentService(_converse_service, _ingest_service)
 
 
+def _load_gateway_file(subfile: str, fullname: str, package: str):
+    import importlib.util as u
+
+    if fullname in sys.modules:
+        return sys.modules[fullname]
+    path = os.path.join(GATEWAY_DIR, subfile)
+    spec = u.spec_from_file_location(fullname, path)
+    mod = u.module_from_spec(spec)
+    mod.__package__ = package
+    sys.modules[fullname] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _init_expert_gateway():
+    global _expert_routes
+    pkg = "cnexus_gateway"
+    gw_mod = _load_gateway_file(
+        os.path.join("services", "expert_gateway.py"),
+        f"{pkg}.services.expert_gateway",
+        f"{pkg}.services",
+    )
+    rt_mod = _load_gateway_file(
+        os.path.join("routes", "expert.py"),
+        f"{pkg}.routes.expert",
+        f"{pkg}.routes",
+    )
+    service = gw_mod.ExpertGatewayService(
+        _state_manager,
+        schedule_persist=_schedule_persist,
+        resolve_model=lambda: _model_service.resolve_model_row_for_chat(None),
+        llm_invoke=_llm_service.invoke,
+    )
+    _expert_routes = rt_mod.ExpertRouteHandler(service)
+
+
 def _init_v2_handler():
     global V2Handler
     V2Handler = create_v2_handler(
@@ -3979,7 +4128,9 @@ def _init_v2_handler():
                 _ingest_routes,
                 _control_routes,
                 _models_routes,
+                expert=_expert_routes,
             ),
+            expert_routes=_expert_routes,
         )
     )
 
@@ -4004,6 +4155,7 @@ _init_projection_ingest_gateway()
 _init_asset_route_gateway()
 _init_control_routes_gateway()
 _init_static_routes_gateway()
+_init_expert_gateway()
 _init_v2_handler()
 
 
@@ -4047,6 +4199,20 @@ def main():
             _schedule_persist()
     except Exception as exc:
         _append_runtime_log(f"Foundation BOOT 失败 · {exc}", category="control_plane", level="warn")
+    try:
+        share_boot = _bootstrap_share_local_memory()
+        if share_boot.get("shared"):
+            _append_runtime_log(
+                f"本地记忆已发布 · graph={share_boot.get('graph_id', '')[:16]}… "
+                f"blocks={share_boot.get('block_count', 0)}",
+                category="control_plane",
+            )
+        elif share_boot.get("skipped") and share_boot.get("reason") not in ("disabled", "no_blocks", "application_unavailable"):
+            pass
+        elif share_boot.get("error"):
+            _append_runtime_log(f"本地记忆分享失败 · {share_boot.get('error')}", category="control_plane", level="warn")
+    except Exception as exc:
+        _append_runtime_log(f"本地记忆分享启动失败 · {exc}", category="control_plane", level="warn")
     _maybe_replay_on_boot()
     identity = _identity_status()
     audit_state = _verify_audit_integrity()
@@ -4090,6 +4256,8 @@ def main():
     print(f"   POST /api/asset/pull — pull asset blob from trusted peer on cache miss")
     print(f"   POST /api/asset/receive — peer ingest endpoint (signed)")
     print(f"   Env  CNEXUS_ASSET_PEER_PULL=1 — auto-pull on recall / semantic search miss")
+    print(f"   Env  CNEXUS_ASSET_PEER_PUSH=1 (default) — auto-push indexed assets to trusted peers")
+    print(f"   Env  CNEXUS_SHARE_LOCAL_MEMORY=1 (default) — publish local memory to catalog on boot")
     print(f"   Env  CNEXUS_ASSET_EMBED_ENABLE=1 — Ollama/cloud vector index")
     print(f"   Genesis handshake: CNEXUS_GENESIS_ENABLE=1 — full AuditLog mirror on boot")
     print(f"   Resilience score: GET /api/status → resilience.score")

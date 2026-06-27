@@ -35,9 +35,16 @@ import {
   type ThinkingMode,
 } from "@/lib/thinkingMode";
 import { loadMemoryScope, type MemoryScope } from "@/lib/memoryScope";
+import {
+  expertConverseFields,
+  expertDistillModeLabel,
+  loadExpertDistillEnabled,
+  loadExpertSubjectId,
+} from "@/lib/expertDistillMode";
 import { CHAT_PREFS_CHANGED } from "@/lib/chatPrefs";
 import { ChatPreferencesDropdown } from "./ChatPreferencesDropdown";
 import { ChatMemoryScopeSelect } from "./ChatMemoryScopeSelect";
+import { ChatExpertDistillToggle } from "./ChatExpertDistillToggle";
 import {
   buildConflictChatPrompt,
   consumeConflictChatSeed,
@@ -145,6 +152,7 @@ export function ChatPanel({
   const [converseMode, setConverseMode] = useState<ConverseMode>(() => loadConverseMode());
   const [thinkingMode, setThinkingMode] = useState<ThinkingMode>(() => loadThinkingMode());
   const [memoryScope, setMemoryScope] = useState<MemoryScope>(() => loadMemoryScope());
+  const [expertDistill, setExpertDistill] = useState(() => loadExpertDistillEnabled());
   const inputBlocked = loading || authLoading || (!isDemo && !canChat);
   const pendingModelIdRef = useRef<string | undefined>(undefined);
   const pendingUserTextRef = useRef("");
@@ -157,6 +165,7 @@ export function ChatPanel({
       setConverseMode(loadConverseMode());
       setThinkingMode(loadThinkingMode());
       setMemoryScope(loadMemoryScope());
+      setExpertDistill(loadExpertDistillEnabled());
     };
     window.addEventListener(CHAT_PREFS_CHANGED, syncPrefs);
     return () => window.removeEventListener(CHAT_PREFS_CHANGED, syncPrefs);
@@ -339,7 +348,9 @@ export function ChatPanel({
       const activeConverseMode = converseMode;
       const activeThinkingMode = thinkingMode;
       const activeMemoryScope = memoryScope;
-      const assistantMeta = `CNexus 2.0 · ${thinkingModeLabel(activeThinkingMode)} · ${converseModeLabel(activeConverseMode)}`;
+      const activeExpertDistill = expertDistill;
+      const modeTag = expertDistillModeLabel(activeExpertDistill);
+      const assistantMeta = `CNexus 2.0 · ${modeTag} · ${thinkingModeLabel(activeThinkingMode)} · ${converseModeLabel(activeConverseMode)}`;
       setMessages((m) => [...m, { role: "assistant", text: "", meta: assistantMeta }]);
       const modelId = await ensurePersonalChatModelForSend(selectedModelId || "cnexus-local", models);
       try {
@@ -376,6 +387,10 @@ export function ChatPanel({
           activeConverseMode,
           activeThinkingMode,
           activeMemoryScope,
+          {
+            expertDistillEnabled: activeExpertDistill,
+            expertMode: loadExpertSubjectId(),
+          },
         );
         setMessages((m) => {
           if (!m.length) return m;
@@ -385,7 +400,7 @@ export function ChatPanel({
           copy[copy.length - 1] = {
             ...last,
             text: last.text || "（无回复）",
-            meta: `${thinkingModeLabel(activeThinkingMode)} · ${converseModeLabel(activeConverseMode)}${latencyHint}`,
+            meta: `${modeTag} · ${thinkingModeLabel(activeThinkingMode)} · ${converseModeLabel(activeConverseMode)}${latencyHint}`,
           };
           return copy;
         });
@@ -408,6 +423,7 @@ export function ChatPanel({
               thinking_mode: activeThinkingMode,
               memory_scope: activeMemoryScope,
               ...(modelId ? { model_id: modelId } : {}),
+              ...expertConverseFields(activeExpertDistill, loadExpertSubjectId()),
             }),
           });
           const data = (await resp.json()) as { reply?: string; error?: string; ok?: boolean };
@@ -450,7 +466,7 @@ export function ChatPanel({
       appendAssistant(`聊天失败：${formatChatError(detail)}`);
       setLoading(false);
     }
-  }, [input, loading, authPreview, authLoading, isDemo, canChat, selectedModelId, models, converseMode, thinkingMode, memoryScope, resolveModelIdStrict, appendAssistant, fullCognitiveLoop]);
+  }, [input, loading, authPreview, authLoading, isDemo, canChat, selectedModelId, models, converseMode, thinkingMode, memoryScope, expertDistill, resolveModelIdStrict, appendAssistant, fullCognitiveLoop]);
 
   const openMessageMenu = useCallback((clientX: number, clientY: number, index: number) => {
     setShareIndex(null);
@@ -666,6 +682,23 @@ export function ChatPanel({
             value={memoryScope}
             onChange={setMemoryScope}
             compact={isFloat}
+            disabled={inputBlocked}
+            className="mb-2"
+          />
+        )}
+        {isPersonalMode() && isFloat && (
+          <ChatExpertDistillToggle
+            enabled={expertDistill}
+            onChange={setExpertDistill}
+            compact
+            disabled={inputBlocked}
+            className="mb-2"
+          />
+        )}
+        {isPersonalMode() && !isFloat && !isSecondBrain && (
+          <ChatExpertDistillToggle
+            enabled={expertDistill}
+            onChange={setExpertDistill}
             disabled={inputBlocked}
             className="mb-2"
           />

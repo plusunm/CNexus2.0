@@ -25,6 +25,7 @@ class V2Bindings:
     auth_gate: Any
     put_routes: Sequence[Any]
     post_routes: Sequence[PostRouteFn]
+    expert_routes: Any = None
 
 
 def create_v2_handler(bindings: V2Bindings):
@@ -60,6 +61,11 @@ def create_v2_handler(bindings: V2Bindings):
             converse_get = bindings.converse_routes.handle_get(path, p.query)
             if converse_get is not None:
                 return apply_route_response(self, converse_get)
+
+            if bindings.expert_routes is not None:
+                expert_get = bindings.expert_routes.handle_get(path, p.query)
+                if expert_get is not None:
+                    return apply_route_response(self, expert_get)
 
             models_get = bindings.models_routes.handle_http_get(path, p.query)
             if models_get is not None:

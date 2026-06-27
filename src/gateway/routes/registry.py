@@ -9,6 +9,7 @@ from ..http.responses import HttpRouteResponse
 from .asset import AssetRouteHandler
 from .converse import ConverseRouteHandler
 from .control import ControlRouteHandler
+from .expert import ExpertRouteHandler
 from .ingest import IngestRouteHandler
 from .models import ModelsRouteHandler
 from .peer import PeerRouteHandler
@@ -21,6 +22,7 @@ def build_post_routes(
     ingest: IngestRouteHandler,
     control: ControlRouteHandler,
     models: ModelsRouteHandler,
+    expert: Optional[ExpertRouteHandler] = None,
 ) -> Tuple[PostRouteFn, ...]:
     """Ordered POST handlers — first match wins (see post_dispatch.py)."""
 
@@ -42,7 +44,25 @@ def build_post_routes(
     def _models(handler: Any, path: str, query: Optional[str]) -> Optional[HttpRouteResponse]:
         return models.handle_http_post(path, handler._read_json(), query)
 
-    return (_converse, _asset, _peer, _ingest, _control, _models)
+    def _expert(handler: Any, path: str, query: Optional[str]) -> Optional[HttpRouteResponse]:
+        if expert is None:
+            return None
+        return expert.handle_post(path, handler)
+
+    routes: Tuple[PostRouteFn, ...] = (_converse, _asset, _peer, _ingest, _control, _models)
+    if expert is not None:
+        routes = routes + (_expert,)
+    return routes
+
+
+def build_get_expert_route(expert: Optional[ExpertRouteHandler]):
+    if expert is None:
+        return None
+
+    def _expert_get(handler: Any, path: str, query: Optional[str]) -> Optional[HttpRouteResponse]:
+        return expert.handle_get(path, query)
+
+    return _expert_get
 
 
 def build_put_routes(models: ModelsRouteHandler) -> Sequence[Any]:

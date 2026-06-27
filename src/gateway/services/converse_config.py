@@ -120,3 +120,16 @@ class ConverseConfigService:
         if raw is None:
             raw = payload.get("scope")
         return normalize_memory_scope(raw)
+
+    def parse_expert_profile(self, data: Optional[dict]) -> Tuple[Optional[str], str]:
+        payload = data or {}
+        expert_mode = payload.get("expert_mode")
+        if expert_mode is not None:
+            expert_mode = str(expert_mode).strip() or None
+        style = payload.get("expert_style_source")
+        if style is None:
+            style = payload.get("style_source")
+        style = str(style or "prompt").strip().lower()
+        if style not in ("prompt", "recall", "off"):
+            style = "prompt"
+        return expert_mode, style

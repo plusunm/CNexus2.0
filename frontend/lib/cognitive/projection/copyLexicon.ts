@@ -750,6 +750,26 @@ export const cognitiveCopy = {
     { en: "Recall scope", zh: "记忆来源" },
     { en: "Memory scope", zh: "Memory scope" },
   ),
+  expertDistillHint: copy(
+    { en: "Single-source expert style via SCP — off uses general chat", zh: "开启后走 SCP 专家蒸馏；关闭为通用对话" },
+    { en: "Expert distillation on/off", zh: "专家蒸馏开关" },
+    { en: "Expert distill toggle", zh: "Expert distill toggle" },
+  ),
+  expertDistillMode: copy(
+    { en: "Chat mode", zh: "对话模式" },
+    { en: "Chat mode", zh: "对话模式" },
+    { en: "Chat mode", zh: "Chat mode" },
+  ),
+  expertDistillOn: copy(
+    { en: "Expert distill", zh: "蒸馏专家模式" },
+    { en: "Expert distill", zh: "蒸馏专家" },
+    { en: "Expert distill", zh: "Expert distill" },
+  ),
+  expertDistillOff: copy(
+    { en: "General chat", zh: "通用模式" },
+    { en: "General mode", zh: "通用模式" },
+    { en: "General", zh: "General" },
+  ),
   precisionHint: copy(
     { en: "Accurate, grounded answers", zh: "准确、有据可依的回答" },
     { en: "Strict provenance", zh: "严守依据" },

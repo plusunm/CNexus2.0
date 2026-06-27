@@ -19,6 +19,13 @@ def _guard_reply_against_echo(input_text: str, reply: str) -> str:
     return reply if out else _compose_kernel_reply(user, degradation_level="L0")
 
 
+def _resolve_turn_llm_context(prep: Dict[str, Any], compose_llm_context: Callable[[str], str]) -> str:
+    """When SCP admit ran, never bypass with raw activation_context (spec §11 PR gate)."""
+    if "llm_context" in prep:
+        return str(prep["llm_context"] or "")
+    return compose_llm_context(str(prep.get("activation_context") or ""))
+
+
 class StateAccess(Protocol):
     def mutate(self, fn: Callable[[Dict[str, Any]], Any]) -> Any: ...
 
@@ -34,6 +41,22 @@ def cognize_context_dict(cog: Any) -> Any:
             if hasattr(ctx, k)
         }
     return ctx
+
+
+def _semantic_turn_meta(profile: Dict[str, Any], scp_response: Any) -> Dict[str, Any]:
+    meta: Dict[str, Any] = {
+        "expert_mode": profile.get("expert_mode"),
+        "style_source": profile.get("expert_style_source") or profile.get("style_source"),
+        "thinking_mode": profile.get("thinking_mode"),
+        "memory_scope": profile.get("memory_scope"),
+        "scp_admitted": getattr(scp_response, "admitted", True),
+    }
+    decision = getattr(scp_response, "decision", None)
+    if decision is not None:
+        weights = getattr(decision, "dimension_weights", None)
+        if weights:
+            meta["dimension_weights"] = dict(weights)
+    return meta
 
 
 @dataclass(frozen=True)
@@ -75,6 +98,7 @@ class PipelineDeps:
     speech_text: Callable[[Any], str]
     persist_turn: Callable[[TurnCommitPackage], None]
     fast_converse: bool
+    scp_admit: Optional[Callable[[str, str, Dict[str, Any]], Any]] = None
 
 
 class CognitivePipeline:
@@ -94,6 +118,8 @@ class CognitivePipeline:
         converse_mode: str = "fast",
         thinking_mode: str = "precision",
         memory_scope: str = "local",
+        expert_mode: Optional[str] = None,
+        expert_style_source: str = "prompt",
     ) -> Dict[str, Any]:
         deps = self._deps
         profile = deps.converse_mode_profile(converse_mode)
@@ -102,6 +128,9 @@ class CognitivePipeline:
             **deps.thinking_params(thinking_mode),
             "memory_scope": memory_scope,
         }
+        if expert_mode:
+            profile["expert_mode"] = expert_mode
+        profile["expert_style_source"] = expert_style_source
         deps.touch_activity()
         # Network/model registry work must stay outside the state lock (pre-architecture fast path).
         model_row = deps.resolve_model(model_id)
@@ -155,7 +184,24 @@ class CognitivePipeline:
                             if activation_context
                             else neg_ctx
                         )
-            llm_context = deps.compose_llm_context(activation_context)
+            if deps.scp_admit is not None:
+                scp_response = deps.scp_admit(input_text, activation_context, profile)
+                llm_context = getattr(scp_response, "llm_context", None)
+                if llm_context is None and isinstance(scp_response, dict):
+                    llm_context = scp_response.get("llm_context", "")
+                if llm_context is None:
+                    llm_context = deps.compose_llm_context(activation_context)
+                engine["semantic_turn"] = _semantic_turn_meta(profile, scp_response)
+                if hasattr(scp_response, "budget_state"):
+                    engine["semantic_budget"] = scp_response.budget_state.to_dict()
+                if hasattr(scp_response, "correction") and scp_response.correction is not None:
+                    engine["semantic_budget_correction"] = {
+                        "trigger_id": scp_response.correction.trigger_id,
+                        "level": scp_response.correction.level,
+                        "style_source_override": scp_response.correction.style_source_override,
+                    }
+            else:
+                llm_context = deps.compose_llm_context(activation_context)
             return {
                 "input_text": input_text,
                 "trace_id": trace_id,
@@ -187,6 +233,8 @@ class CognitivePipeline:
         converse_mode: str = "fast",
         thinking_mode: str = "precision",
         memory_scope: str = "local",
+        expert_mode: Optional[str] = None,
+        expert_style_source: str = "prompt",
     ) -> Iterator[ConverseEvent]:
         self.last_commit = None
         self.last_done_payload = None
@@ -206,6 +254,8 @@ class CognitivePipeline:
             converse_mode=converse_mode,
             thinking_mode=thinking_mode,
             memory_scope=memory_scope,
+            expert_mode=expert_mode,
+            expert_style_source=expert_style_source,
         )
         profile = prep["mode_profile"]
         t_prepare = time.perf_counter()
@@ -231,7 +281,7 @@ class CognitivePipeline:
         model_row = prep["model_row"]
         dec, ctx, st = prep["dec"], prep["ctx"], prep["st"]
         activation_context = prep["activation_context"]
-        llm_context = prep.get("llm_context") or self._deps.compose_llm_context(activation_context)
+        llm_context = _resolve_turn_llm_context(prep, self._deps.compose_llm_context)
         token_source = "estimated"
         token_mode = "fast"
         llm_usage = None
@@ -413,6 +463,8 @@ class CognitivePipeline:
         converse_mode: str = "fast",
         thinking_mode: str = "precision",
         memory_scope: str = "local",
+        expert_mode: Optional[str] = None,
+        expert_style_source: str = "prompt",
     ) -> Dict[str, Any]:
         t_start = time.perf_counter()
         prep = self.prepare_turn(
@@ -421,6 +473,8 @@ class CognitivePipeline:
             converse_mode=converse_mode,
             thinking_mode=thinking_mode,
             memory_scope=memory_scope,
+            expert_mode=expert_mode,
+            expert_style_source=expert_style_source,
         )
         profile = prep["mode_profile"]
         t_prepare = time.perf_counter()
@@ -429,7 +483,7 @@ class CognitivePipeline:
         model_row = prep["model_row"]
         activation_hits = prep["activation_hits"]
         activation_context = prep["activation_context"]
-        llm_context = prep.get("llm_context") or self._deps.compose_llm_context(activation_context)
+        llm_context = _resolve_turn_llm_context(prep, self._deps.compose_llm_context)
         trace_id = prep["trace_id"]
         token_source = "estimated"
         token_mode = "fast"

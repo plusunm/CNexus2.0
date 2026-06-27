@@ -30,6 +30,8 @@ class ConverseService:
         converse_mode: str = "fast",
         thinking_mode: str = "precision",
         memory_scope: str = "local",
+        expert_mode: Optional[str] = None,
+        expert_style_source: str = "prompt",
     ) -> Iterator[ConverseEvent]:
         sid = session_id or "session-unknown"
         aborted = False
@@ -41,6 +43,8 @@ class ConverseService:
             converse_mode=converse_mode,
             thinking_mode=thinking_mode,
             memory_scope=memory_scope,
+            expert_mode=expert_mode,
+            expert_style_source=expert_style_source,
         )
 
         try:
@@ -90,6 +94,8 @@ class ConverseService:
         converse_mode: str = "fast",
         thinking_mode: str = "precision",
         memory_scope: str = "local",
+        expert_mode: Optional[str] = None,
+        expert_style_source: str = "prompt",
     ) -> Dict[str, Any]:
         return self._pipeline.run_turn_blocking(
             input_text,
@@ -97,4 +103,6 @@ class ConverseService:
             converse_mode=converse_mode,
             thinking_mode=thinking_mode,
             memory_scope=memory_scope,
+            expert_mode=expert_mode,
+            expert_style_source=expert_style_source,
         )

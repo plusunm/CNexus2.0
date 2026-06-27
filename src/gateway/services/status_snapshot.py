@@ -152,9 +152,32 @@ class StatusSnapshotService:
                 "resilience": self._resilience.build(),
                 "replay": self._subsystems.replay_status(),
                 "reflection": self._subsystems.reflection_status(),
+                "semantic_control": _semantic_control_snapshot(engine),
             }
 
         return self._state.mutate(_snapshot)
+
+
+def _semantic_control_snapshot(engine: Dict[str, Any]) -> Dict[str, Any]:
+    budget = dict(engine.get("semantic_budget") or {})
+    correction = dict(engine.get("semantic_budget_correction") or {})
+    turn = dict(engine.get("semantic_turn") or {})
+    drift = dict(engine.get("semantic_drift") or {})
+    return {
+        "enabled": bool(budget or turn),
+        "scp_layer": "semantic_control_plane",
+        "turn_count": int(budget.get("turn_count") or 0),
+        "ema": dict(budget.get("ema") or {}),
+        "correction_active": bool(budget.get("correction_active")),
+        "last_correction": budget.get("last_correction") or correction.get("trigger_id"),
+        "freeze_style_until_turn": int(budget.get("freeze_style_until_turn") or 0),
+        "force_mmr_rebalance": bool(budget.get("force_mmr_rebalance")),
+        "pending_style_source_override": budget.get("pending_style_source_override"),
+        "expert_mode": turn.get("expert_mode"),
+        "style_source": turn.get("style_source"),
+        "dimension_weights": dict(turn.get("dimension_weights") or {}),
+        "drift": drift,
+    }
 
 
 def _projection_links_snapshot(engine: Dict[str, Any]) -> List[Dict[str, Any]]:

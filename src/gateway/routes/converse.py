@@ -35,6 +35,7 @@ class ConverseRouteHandler:
         data = {k: v[0] for k, v in qs.items() if v}
         converse_mode, thinking_mode = self._config.parse_request_modes(data)
         memory_scope = self._config.parse_memory_scope(data)
+        expert_mode, expert_style_source = self._config.parse_expert_profile(data)
         model_id = data.get("model_id")
         try:
             result = self._service.run_blocking(
@@ -43,6 +44,8 @@ class ConverseRouteHandler:
                 converse_mode=converse_mode,
                 thinking_mode=thinking_mode,
                 memory_scope=memory_scope,
+                expert_mode=expert_mode,
+                expert_style_source=expert_style_source,
             )
             return HttpRouteResponse.json(
                 {"ok": True, "status": "success", "reply": result["reply"], **result}
@@ -65,6 +68,7 @@ class ConverseRouteHandler:
                 return HttpRouteResponse.json({"ok": False, "error": "missing text"}, 400)
             converse_mode, thinking_mode = self._config.parse_request_modes(data)
             memory_scope = self._config.parse_memory_scope(data)
+            expert_mode, expert_style_source = self._config.parse_expert_profile(data)
             return HttpRouteResponse.sse(
                 self.iter_sse_strings(
                     str(text),
@@ -72,6 +76,8 @@ class ConverseRouteHandler:
                     converse_mode=converse_mode,
                     thinking_mode=thinking_mode,
                     memory_scope=memory_scope,
+                    expert_mode=expert_mode,
+                    expert_style_source=expert_style_source,
                 )
             )
         except Exception as exc:
@@ -86,6 +92,7 @@ class ConverseRouteHandler:
             model_id = data.get("model_id")
             converse_mode, thinking_mode = self._config.parse_request_modes(data)
             memory_scope = self._config.parse_memory_scope(data)
+            expert_mode, expert_style_source = self._config.parse_expert_profile(data)
             accept_header_stream = "text/event-stream" in (http.headers.get("Accept") or "").lower()
             want_stream = self._stream_default and (
                 data.get("stream") is True
@@ -100,6 +107,8 @@ class ConverseRouteHandler:
                         converse_mode=converse_mode,
                         thinking_mode=thinking_mode,
                         memory_scope=memory_scope,
+                        expert_mode=expert_mode,
+                        expert_style_source=expert_style_source,
                     )
                 )
             result = self._service.run_blocking(
@@ -108,6 +117,8 @@ class ConverseRouteHandler:
                 converse_mode=converse_mode,
                 thinking_mode=thinking_mode,
                 memory_scope=memory_scope,
+                expert_mode=expert_mode,
+                expert_style_source=expert_style_source,
             )
             return HttpRouteResponse.json(
                 {"ok": True, "status": "success", "reply": result["reply"], **result}
@@ -124,6 +135,8 @@ class ConverseRouteHandler:
         thinking_mode: str = "precision",
         memory_scope: str = "local",
         session_id: Optional[str] = None,
+        expert_mode: Optional[str] = None,
+        expert_style_source: str = "prompt",
     ) -> Iterator[str]:
         for event in self._service.stream_message(
             input_text,
@@ -132,5 +145,7 @@ class ConverseRouteHandler:
             converse_mode=converse_mode,
             thinking_mode=thinking_mode,
             memory_scope=memory_scope,
+            expert_mode=expert_mode,
+            expert_style_source=expert_style_source,
         ):
             yield event_to_sse_string(event)

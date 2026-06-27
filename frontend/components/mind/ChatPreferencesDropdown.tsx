@@ -23,6 +23,11 @@ import { notifyChatPrefsChanged } from "@/lib/chatPrefs";
 import { useCognitiveCopy } from "@/lib/cognitive";
 import { useMindTheme } from "./MindUiProvider";
 import { SbSegment, SbSettingRow } from "./second-brain/SbUIKit";
+import {
+  loadExpertDistillEnabled,
+  resolveExpertSubjectId,
+} from "@/lib/expertDistillMode";
+import { ChatExpertDistillToggle } from "./ChatExpertDistillToggle";
 
 type Props = {
   disabled?: boolean;
@@ -42,6 +47,7 @@ export function ChatPreferencesDropdown({
   const [thinkingMode, setThinkingMode] = useState<ThinkingMode>(() => loadThinkingMode());
   const [converseMode, setConverseMode] = useState<ConverseMode>(() => loadConverseMode());
   const [memoryScope, setMemoryScope] = useState<MemoryScope>(() => loadMemoryScope());
+  const [expertDistill, setExpertDistill] = useState(() => loadExpertDistillEnabled());
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -82,7 +88,11 @@ export function ChatPreferencesDropdown({
   }, [open, portal]);
 
   const summary =
-    thinkingMode === "precision" ? copy("precision") : copy("emergent");
+    expertDistill
+      ? copy("expertDistillOn")
+      : thinkingMode === "precision"
+        ? copy("precision")
+        : copy("emergent");
 
   const menuBody = (
     <>
@@ -97,6 +107,18 @@ export function ChatPreferencesDropdown({
           {summary}
         </span>
       </div>
+
+      <SbSettingRow label={copy("expertDistillMode")}>
+        <ChatExpertDistillToggle
+          enabled={expertDistill}
+          compact
+          disabled={disabled}
+          onChange={(next) => {
+            setExpertDistill(next);
+            if (next) void resolveExpertSubjectId();
+          }}
+        />
+      </SbSettingRow>
 
       <SbSettingRow label={copy("thinkingStyle")}>
         <SbSegment

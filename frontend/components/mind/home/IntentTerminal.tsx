@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowUp, Loader2, MessageSquarePlus, Search, Sparkles, BookmarkPlus } from "lucide-react";
 import { brainApi, getDefaultFullCognitiveLoop } from "@/lib/api";
 import { getApiBase } from "@/lib/cnexusConfig";
@@ -11,11 +11,18 @@ import {
   type ConverseMode,
 } from "@/lib/converseMode";
 import { loadMemoryScope } from "@/lib/memoryScope";
+import {
+  expertConverseFields,
+  loadExpertDistillEnabled,
+  loadExpertSubjectId,
+} from "@/lib/expertDistillMode";
 import { isPersonalMode } from "@/lib/personalGuard";
 import { resolvePersonalChatModelId } from "@/lib/personalChatModel";
 import { useMindStore } from "@/cnexus-kernel";
 import { useMindTheme } from "../MindUiProvider";
 import { ChatConverseModeSelect } from "../ChatConverseModeSelect";
+import { ChatExpertDistillToggle } from "../ChatExpertDistillToggle";
+import { CHAT_PREFS_CHANGED } from "@/lib/chatPrefs";
 import { INTENT_MODE_LABELS, type IntentMode } from "@/lib/cognitiveTypes";
 
 const MODE_ICONS = {
@@ -49,8 +56,15 @@ export function IntentTerminal({
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [converseMode, setConverseMode] = useState<ConverseMode>(() => loadConverseMode());
+  const [expertDistill, setExpertDistill] = useState(() => loadExpertDistillEnabled());
   const [liveReply, setLiveReply] = useState<string | null>(null);
   const isPrimary = variant === "primary";
+
+  useEffect(() => {
+    const sync = () => setExpertDistill(loadExpertDistillEnabled());
+    window.addEventListener(CHAT_PREFS_CHANGED, sync);
+    return () => window.removeEventListener(CHAT_PREFS_CHANGED, sync);
+  }, []);
 
   const meta = INTENT_MODE_LABELS[mode];
 
@@ -82,6 +96,10 @@ export function IntentTerminal({
               converseMode,
               "precision",
               loadMemoryScope(),
+              {
+                expertDistillEnabled: expertDistill,
+                expertMode: loadExpertSubjectId(),
+              },
             );
             let replyText = done?.reply || "（无回复）";
             if (done?.llm_source === "provider" && done?.model_name) {
@@ -95,8 +113,10 @@ export function IntentTerminal({
               body: JSON.stringify({
                 text,
                 converse_mode: converseMode,
+                thinking_mode: "precision",
                 memory_scope: loadMemoryScope(),
                 ...(modelId ? { model_id: modelId } : {}),
+                ...expertConverseFields(expertDistill, loadExpertSubjectId()),
               }),
             });
             const data = (await resp.json()) as {
@@ -215,7 +235,25 @@ export function IntentTerminal({
         </div>
       )}
 
-      {mode === "ask" && (
+      {mode === "ask" && isPersonalMode() && (
+        <>
+          <ChatConverseModeSelect
+            value={converseMode}
+            onChange={setConverseMode}
+            compact={!isPrimary}
+            disabled={disabled || loading}
+            className="mb-3"
+          />
+          <ChatExpertDistillToggle
+            enabled={expertDistill}
+            onChange={setExpertDistill}
+            compact={!isPrimary}
+            disabled={disabled || loading}
+            className="mb-3"
+          />
+        </>
+      )}
+      {mode === "ask" && !isPersonalMode() && (
         <ChatConverseModeSelect
           value={converseMode}
           onChange={setConverseMode}

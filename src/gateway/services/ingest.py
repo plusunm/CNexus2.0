@@ -16,6 +16,20 @@ from .memory.project import attach_project_scope, normalize_active_project
 FAST_TEXT_EXTENSIONS = frozenset({"txt", "md", "markdown"})
 
 
+def _expert_meta_from_policy(policy: Optional[Dict[str, Any]], filename: str = "") -> Optional[Dict[str, Any]]:
+    policy = dict(policy or {})
+    sid = str(policy.get("subject_id") or policy.get("expert_id") or "").strip()
+    if not sid and str(filename).startswith("expert:"):
+        sid = str(filename).split(":", 1)[1].strip().split("/")[0]
+    if not sid:
+        return None
+    return {
+        "subject_id": sid,
+        "semantic_dimension": str(policy.get("semantic_dimension") or "fact"),
+        "distill_mode": str(policy.get("distill_mode") or "ingest"),
+    }
+
+
 def fast_track_rank(filename: str) -> int:
     """0 = text fast path, 1 = heavier formats."""
     ext = os.path.splitext(str(filename or ""))[1].lstrip(".").lower()
@@ -320,6 +334,7 @@ class DocumentIngestService:
             importance=importance,
             file_id=file_id,
             source="gateway_file_process",
+            policy=policy,
         )
         return {
             "trace_id": result["trace_id"],
@@ -485,6 +500,7 @@ class DocumentIngestService:
         importance: float,
         file_id: str,
         source: str,
+        policy: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         snippet = content[: self.MEMORY_SNIPPET_CHARS]
         keywords = extract_keywords(content, 6)
@@ -499,6 +515,7 @@ class DocumentIngestService:
             importance=importance,
             keyword_limit=6,
             memory_level=str(infer_memory_level_from_ingest(filename, content)),
+            expert_meta=_expert_meta_from_policy(policy, filename),
         )
 
         upload_rows = [
@@ -540,6 +557,7 @@ class DocumentIngestService:
         importance: float,
         keyword_limit: int,
         memory_level: str = "long_term",
+        expert_meta: Optional[Dict[str, Any]] = None,
     ) -> List[str]:
         keywords = extract_keywords(content, keyword_limit)
         active = self._state.mutate(lambda engine: normalize_active_project(engine.get("active_project")))
@@ -561,6 +579,18 @@ class DocumentIngestService:
                 project_id=project_id,
                 lifecycle_id=lifecycle_id,
             )
+            if expert_meta and expert_meta.get("subject_id"):
+                try:
+                    from plugins.expert_distill.tagging import stamp_expert_metadata
+
+                    main_block = stamp_expert_metadata(
+                        main_block,
+                        subject_id=str(expert_meta.get("subject_id")),
+                        semantic_dimension=str(expert_meta.get("semantic_dimension") or "fact"),
+                        distill_mode=str(expert_meta.get("distill_mode") or "ingest"),
+                    )
+                except ImportError:
+                    pass
             store.add(main_block)
             for kw in keywords[:4]:
                 kw_block = attach_project_scope(

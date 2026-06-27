@@ -15,6 +15,7 @@ import { createBootstrapGate } from "./FrontendBootstrapGateV3";
 import { useMindConnection } from "./MindConnectionProvider";
 import { useMindStore } from "./MindStore";
 import { RUNTIME_FULL_PROBE_MS, RUNTIME_UPLOAD_PROBE_MS } from "@/lib/uiPollIntervals";
+import { ensureDefaultMemoryScopeOnBoot } from "@/lib/memoryScope";
 import {
   applyExternalReachabilityToMindStore,
   getRuntimeReachabilitySnapshot,
@@ -96,6 +97,10 @@ export function MindRuntimeBridge({ children }: { children: React.ReactNode }) {
   const { runtimeEnabled, effectiveMode } = useMindConnection();
   const shouldBindRuntime =
     runtimeEnabled || (isTauriDesktop() && effectiveMode !== "demo");
+
+  useEffect(() => {
+    ensureDefaultMemoryScopeOnBoot();
+  }, []);
 
   useEffect(() => {
     if (isPersonalMode() && !isWebSocketEnabled()) {

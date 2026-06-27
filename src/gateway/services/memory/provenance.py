@@ -7,6 +7,8 @@ from typing import Any, Optional, Protocol, runtime_checkable
 PROVENANCE_LOCAL_FULL = "local-full"
 PROVENANCE_AUDIT_PREVIEW = "audit-preview"
 PROVENANCE_REMOTE_PREVIEW = "remote-preview"
+PROVENANCE_PERSONA_SYNTHETIC = "persona-synthetic"
+PROVENANCE_POLICY_LAYER = "policy-layer"
 PREVIEW_CHAR_HINT = 480
 
 
@@ -15,11 +17,19 @@ def _provenance_label(provenance: str) -> str:
         return "Remote-Preview"
     if provenance == PROVENANCE_AUDIT_PREVIEW:
         return "Audit-Preview"
+    if provenance == PROVENANCE_PERSONA_SYNTHETIC:
+        return "Persona-Synthetic"
+    if provenance == PROVENANCE_POLICY_LAYER:
+        return "Policy-Layer"
     return "Local-Full"
 
 
 def _is_preview_provenance(provenance: str) -> bool:
     return provenance in (PROVENANCE_AUDIT_PREVIEW, PROVENANCE_REMOTE_PREVIEW)
+
+
+def _is_synthetic_provenance(provenance: str) -> bool:
+    return provenance in (PROVENANCE_PERSONA_SYNTHETIC, PROVENANCE_POLICY_LAYER)
 
 
 @runtime_checkable
@@ -29,6 +39,8 @@ class ProvenancePort(Protocol):
     PROVENANCE_AUDIT_PREVIEW: str
     PROVENANCE_LOCAL_FULL: str
     PROVENANCE_REMOTE_PREVIEW: str
+    PROVENANCE_PERSONA_SYNTHETIC: str
+    PROVENANCE_POLICY_LAYER: str
 
     def from_block(self, block: dict) -> str:
         """Resolve provenance tag from a memory block."""
@@ -59,6 +71,8 @@ class DefaultProvenancePort:
     PROVENANCE_LOCAL_FULL = PROVENANCE_LOCAL_FULL
     PROVENANCE_AUDIT_PREVIEW = PROVENANCE_AUDIT_PREVIEW
     PROVENANCE_REMOTE_PREVIEW = PROVENANCE_REMOTE_PREVIEW
+    PROVENANCE_PERSONA_SYNTHETIC = PROVENANCE_PERSONA_SYNTHETIC
+    PROVENANCE_POLICY_LAYER = PROVENANCE_POLICY_LAYER
 
     def from_block(self, block: dict) -> str:
         data = dict((block or {}).get("data") or {})
@@ -82,8 +96,16 @@ class DefaultProvenancePort:
         text = str(content or "").strip()
         if not text:
             return ""
-        if not _is_preview_provenance(provenance):
+        if not _is_preview_provenance(provenance) and not _is_synthetic_provenance(provenance):
             return text
+
+        if _is_synthetic_provenance(provenance):
+            tag = _provenance_label(provenance)
+            return (
+                f"[Provenance: {tag}]\n"
+                f"[Note: 本条为表达/指令层内容，不可当作可审计事实。]\n"
+                f"----------------\n{text}\n----------------"
+            )
 
         tag = _provenance_label(provenance)
         peer_line = f"\n[Source: {source_peer}]" if source_peer else ""
@@ -106,8 +128,9 @@ class DefaultProvenancePort:
     def build_preamble(self) -> str:
         return (
             "Provenance honesty: fragments tagged [Audit-Preview] or [Remote-Preview] are "
-            "truncated sync excerpts, not full records. Weight them lower; say when inferring "
-            "from partial context.\n"
+            "truncated sync excerpts, not full records. [Persona-Synthetic] and [Policy-Layer] "
+            "are style/procedure guides, never authoritative facts. Weight them lower; say when "
+            "inferring from partial context.\n"
         )
 
     def block_data_with_provenance(

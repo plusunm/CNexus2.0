@@ -62,6 +62,20 @@ if (Test-Path (Join-Path $Root "runtime/constitution")) { Pass "runtime/constitu
 if (Test-Path (Join-Path $Root "ui/index.html")) { Pass "ui/ static export present" } else { Warn "ui/index.html missing — run npm run build:personal" }
 
 Add-Line ""
+Add-Line "== GATE 1b: SCP PR gate (P0-P4) =="
+$scpGateScript = Join-Path $ScriptDir "scp-pr-gate.ps1"
+if (Test-Path $scpGateScript) {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $scpGateScript -Quiet | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        if ($Strict) { Fail "SCP PR gate failed — run scripts/scp-pr-gate.ps1" } else { Warn "SCP PR gate failed — run scripts/scp-pr-gate.ps1 before release" }
+    } else {
+        Pass "SCP PR gate (test_scp_*)"
+    }
+} else {
+    Warn "scp-pr-gate.ps1 missing"
+}
+
+Add-Line ""
 Add-Line "== GATE 2: Desktop boot determinism =="
 Test-SourceContains (Join-Path $TauriDir "src/boot_sequence.rs") "/v1/system/ready" "Rust polls /v1/system/ready"
 Test-SourceContains (Join-Path $TauriDir "src/runtime_probe.rs") "7864" "runtime_probe uses :7864"

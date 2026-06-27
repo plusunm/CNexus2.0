@@ -18,6 +18,28 @@ _REM_PROMPT = (
 )
 
 
+def _filter_rem_sources(sources: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Exclude expert-session LLM outputs from REM distillation (SSS-03)."""
+    try:
+        from semantic.anti_loop import should_skip_rem_for_block
+    except ImportError:
+        should_skip_rem_for_block = None  # type: ignore[assignment,misc]
+
+    filtered: List[Dict[str, Any]] = []
+    for src in sources:
+        if src.get("derived_from_expert_session"):
+            continue
+        block = src.get("block")
+        if (
+            should_skip_rem_for_block is not None
+            and isinstance(block, dict)
+            and should_skip_rem_for_block(block)
+        ):
+            continue
+        filtered.append(src)
+    return filtered
+
+
 @dataclass(frozen=True)
 class RemConsolidationSynthesisConfig:
     max_facts: int = 5
@@ -86,6 +108,7 @@ class RemConsolidationSynthesizer:
         self._config = config or RemConsolidationSynthesisConfig()
 
     def synthesize(self, sources: List[Dict[str, Any]]) -> List[str]:
+        sources = _filter_rem_sources(sources)
         cfg = self._config
         hooks = self._hooks
 

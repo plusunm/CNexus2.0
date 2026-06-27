@@ -415,8 +415,8 @@ export const navL = {
     zh: "对失败的邻居资产推送进行指数退避重试。",
   } satisfies BilingualLabel,
   networkOpPushQueueEnv: {
-    en: "Auto-push on upload: set CNEXUS_ASSET_PEER_PUSH=1 before starting server",
-    zh: "上传后自动推送：启动前设置 CNEXUS_ASSET_PEER_PUSH=1",
+    en: "Auto-push on upload is enabled by default; set CNEXUS_ASSET_PEER_PUSH=0 to disable",
+    zh: "上传后自动推送已默认开启；设置 CNEXUS_ASSET_PEER_PUSH=0 可关闭",
   } satisfies BilingualLabel,
   networkOpPushQueueRun: { en: "Process queue now", zh: "立即处理队列" } satisfies BilingualLabel,
   networkOpReflectTitle: { en: "Metacognitive reflection", zh: "元认知反思" } satisfies BilingualLabel,

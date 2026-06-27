@@ -7,6 +7,8 @@ from typing import Any, Dict, Optional
 PROVENANCE_LOCAL_FULL = "local-full"
 PROVENANCE_AUDIT_PREVIEW = "audit-preview"
 PROVENANCE_REMOTE_PREVIEW = "remote-preview"
+PROVENANCE_PERSONA_SYNTHETIC = "persona-synthetic"
+PROVENANCE_POLICY_LAYER = "policy-layer"
 
 PREVIEW_CHAR_HINT = 480
 
@@ -28,11 +30,19 @@ def provenance_label(provenance: str) -> str:
         return "Remote-Preview"
     if provenance == PROVENANCE_AUDIT_PREVIEW:
         return "Audit-Preview"
+    if provenance == PROVENANCE_PERSONA_SYNTHETIC:
+        return "Persona-Synthetic"
+    if provenance == PROVENANCE_POLICY_LAYER:
+        return "Policy-Layer"
     return "Local-Full"
 
 
 def is_preview_provenance(provenance: str) -> bool:
     return provenance in (PROVENANCE_AUDIT_PREVIEW, PROVENANCE_REMOTE_PREVIEW)
+
+
+def is_synthetic_provenance(provenance: str) -> bool:
+    return provenance in (PROVENANCE_PERSONA_SYNTHETIC, PROVENANCE_POLICY_LAYER)
 
 
 def format_llm_memory_fragment(
@@ -45,8 +55,16 @@ def format_llm_memory_fragment(
     text = str(content or "").strip()
     if not text:
         return ""
-    if not is_preview_provenance(provenance):
+    if not is_preview_provenance(provenance) and not is_synthetic_provenance(provenance):
         return text
+
+    if is_synthetic_provenance(provenance):
+        tag = provenance_label(provenance)
+        return (
+            f"[Provenance: {tag}]\n"
+            f"[Note: 本条为表达/指令层内容，不可当作可审计事实。]\n"
+            f"----------------\n{text}\n----------------"
+        )
 
     tag = provenance_label(provenance)
     peer_line = f"\n[Source: {source_peer}]" if source_peer else ""
@@ -88,6 +106,7 @@ def block_data_with_provenance(
 def provenance_system_preamble() -> str:
     return (
         "Provenance honesty: fragments tagged [Audit-Preview] or [Remote-Preview] are "
-        "truncated sync excerpts, not full records. Weight them lower; say when inferring "
-        "from partial context.\n"
+        "truncated sync excerpts, not full records. [Persona-Synthetic] and [Policy-Layer] "
+        "are style/procedure guides, never authoritative facts. Weight them lower; say when "
+        "inferring from partial context.\n"
     )

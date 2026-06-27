@@ -1771,6 +1771,18 @@ export const cnexusProductApi = {
     }
     return data;
   },
+  publishLocalMemory: async (topic = "memory/local") => {
+    const resp = await fetch(`${getApiBase()}/api/application/publish`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memory: true, topic }),
+    });
+    const data = (await resp.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!resp.ok || data.ok === false) {
+      throw new Error(String(data.error || resp.statusText || "Publish local memory failed"));
+    }
+    return data;
+  },
   fetchNetworkPeers: async () => {
     const resp = await fetch(`${getApiBase()}/api/peers`, { cache: "no-store" });
     const data = (await resp.json().catch(() => ({}))) as {
