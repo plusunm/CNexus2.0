@@ -21,12 +21,14 @@ class ControlRouteHandler:
         gateway_intent: GatewayIntentService,
         project_control: ProjectControlService | None = None,
         clear_scratch: Callable[[], Dict[str, Any]] | None = None,
+        install_stats_opt_in_fn: Callable[[bool], Dict[str, Any]] | None = None,
     ):
         self._control = control
         self._snapshot = snapshot
         self._gateway_intent = gateway_intent
         self._project_control = project_control
         self._clear_scratch = clear_scratch
+        self._install_stats_opt_in_fn = install_stats_opt_in_fn
 
     def handle_post(self, path: str, http: Any) -> Optional[HttpRouteResponse]:
         if path in ("/api/memory/clear", "/v1/memory/clear"):
@@ -62,6 +64,11 @@ class ControlRouteHandler:
 
         if path == "/v1/conversation/scratch/clear" and self._clear_scratch is not None:
             return HttpRouteResponse.json(self._clear_scratch())
+
+        if path == "/api/stats/opt-in" and self._install_stats_opt_in_fn is not None:
+            data = ControlPlaneService.read_json_body(http)
+            enabled = bool(data.get("enabled") if "enabled" in data else data.get("opt_in"))
+            return HttpRouteResponse.json(self._install_stats_opt_in_fn(enabled))
 
         if path == "/api/replay/run":
             return HttpRouteResponse.json(self._control.replay_run(ControlPlaneService.post_data(http)))

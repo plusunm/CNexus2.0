@@ -727,6 +727,7 @@ class PeerMeshService:
                     "application.publish_memory",
                     {"graph_id": payload.get("graph_id"), "commit_id": payload.get("commit_id")},
                 )
+                self._register_share_stats(payload)
             return payload, 200 if payload.get("ok") else 400
 
         graph_row = row.get("graph") or {}
@@ -764,6 +765,28 @@ class PeerMeshService:
             limit=int(row.get("limit") or 64),
         )
         return payload, 200 if payload.get("ok") else 503
+
+    def _register_share_stats(self, payload: Dict[str, Any]) -> None:
+        try:
+            import os
+
+            try:
+                from core.share_stats import try_register_share
+            except ImportError:
+                from share_stats import try_register_share  # type: ignore
+
+            data_dir = str(os.environ.get("CNEXUS_DATA_DIR") or os.path.join(os.getcwd(), "data"))
+            try_register_share(
+                data_dir,
+                graph_id=str(payload.get("graph_id") or ""),
+                block_count=int(payload.get("block_count") or self._hooks.memory_block_count() or 0),
+                commit_id=str(payload.get("commit_id") or ""),
+                root_hash=str(payload.get("root_hash") or ""),
+                version=str(os.environ.get("CNEXUS_VERSION") or "2.4.0"),
+                edition=str(os.environ.get("CNEXUS_EDITION") or "personal"),
+            )
+        except Exception:
+            pass
 
     def application_sync(self, data: Dict[str, Any]) -> JsonResponse:
         app = self._hooks.get_application_service()

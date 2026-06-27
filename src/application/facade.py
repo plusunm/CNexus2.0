@@ -155,7 +155,7 @@ class ApplicationFacade:
             manifest=manifest,
             chunk_payloads=payloads,
             size=sum(len(p["bytes"]) for p in payloads),
-        )
+        ) | {"block_count": len(blocks)}
 
     def find(
         self,

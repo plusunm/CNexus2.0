@@ -15,6 +15,10 @@ import {
   type IngestJobProgress,
 } from "@/lib/documentIngest";
 import {
+  UploadCorpusOptions,
+  useUploadCorpusState,
+} from "@/components/mind/UploadCorpusOptions";
+import {
   buildDocumentUploadGate,
   documentUploadStatusHint,
   ensureDocumentUploadReady,
@@ -74,6 +78,7 @@ export function HomeDocumentUpload({ onImported, compact, navigateAfterImport = 
   const [note, setNote] = useState<string | null>(null);
   const [processing, setProcessing] = useState<ProcessingRow[]>([]);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const uploadCorpus = useUploadCorpusState();
 
   useEffect(() => {
     return () => {
@@ -117,7 +122,9 @@ export function HomeDocumentUpload({ onImported, compact, navigateAfterImport = 
       {
         onComplete: () => {
           void pullMindOverview();
-          const base = `已成功导入 ${total} 个文档到${layer === "goal" ? "目标" : "经历"}记忆`;
+          const base = `已成功导入 ${total} 个文档到${layer === "goal" ? "目标" : "经历"}记忆${
+            uploadCorpus.corpus === "expert" ? `（专家语料 · ${uploadCorpus.subjectId}）` : ""
+          }`;
           setNote(navigateAfterImport ? `${base} · 已跳转记忆流图` : base);
           setProcessing([]);
           if (navigateAfterImport) navigateFlowAfterImport();
@@ -158,7 +165,11 @@ export function HomeDocumentUpload({ onImported, compact, navigateAfterImport = 
         }
       } else {
         const picked = [...files];
-        const { items, traceIds } = await ingestDocumentFiles(picked, { layer, cognize: false });
+        const { items, traceIds } = await ingestDocumentFiles(picked, {
+          layer,
+          cognize: false,
+          ...uploadCorpus.ingestExpertFields,
+        });
         ok = items.length;
         if (ok > 0 && traceIds.length > 0) {
           const queuedRows: ProcessingRow[] = items.map((item) => ({
@@ -188,7 +199,9 @@ export function HomeDocumentUpload({ onImported, compact, navigateAfterImport = 
       setFiles([]);
       if (inputRef.current) inputRef.current.value = "";
       const keywordHint = formatIngestKeywords(lastKeywords);
-      const base = `已成功导入 ${ok} 个文档到${layer === "goal" ? "目标" : "经历"}记忆`;
+      const base = `已成功导入 ${ok} 个文档到${layer === "goal" ? "目标" : "经历"}记忆${
+        uploadCorpus.corpus === "expert" ? `（专家语料 · ${uploadCorpus.subjectId}）` : ""
+      }`;
       setNote(
         navigateAfterImport
           ? keywordHint
@@ -245,6 +258,17 @@ export function HomeDocumentUpload({ onImported, compact, navigateAfterImport = 
           {statusHint}
         </p>
       )}
+
+      <UploadCorpusOptions
+        className={compact ? "mb-2" : "mb-3"}
+        compact={compact}
+        corpus={uploadCorpus.corpus}
+        onCorpusChange={uploadCorpus.setCorpus}
+        subjectId={uploadCorpus.subjectId}
+        onSubjectIdChange={uploadCorpus.setSubjectId}
+        semanticDimension={uploadCorpus.semanticDimension}
+        onSemanticDimensionChange={uploadCorpus.setSemanticDimension}
+      />
 
       <div className={compact ? "flex flex-col gap-2 flex-1 min-h-0" : "grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3"}>
         <label

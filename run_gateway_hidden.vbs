@@ -9,5 +9,5 @@ root = fso.GetParentFolderName(WScript.ScriptFullName)
 logPath = fso.BuildPath(root, "gateway.log")
 
 shell.CurrentDirectory = root
-cmd = "cmd /c python -B -u app_v2.py >> """ & logPath & """ 2>&1"
+cmd = "cmd /c call """ & fso.BuildPath(root, "scripts\ensure_pynacl.bat") & """ && python -B -u app_v2.py >> """ & logPath & """ 2>&1"
 shell.Run cmd, 0, False

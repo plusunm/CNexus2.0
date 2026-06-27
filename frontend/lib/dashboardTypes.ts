@@ -102,6 +102,15 @@ export type DashboardStatus = {
     total_facts?: number;
     semantic_facts?: number;
   };
+  identity?: {
+    enabled?: boolean;
+    loaded?: boolean;
+    algorithm?: string;
+    pubkey?: string;
+    path?: string;
+    error?: string;
+    hint?: string;
+  };
   consensus?: {
     enabled?: boolean;
     mode?: "optimistic" | "conservative" | string;

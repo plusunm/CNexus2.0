@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 from urllib.parse import parse_qs
 
 from ..http.responses import HttpRouteResponse
@@ -34,6 +34,8 @@ class SystemStatusRouteHandler:
         gateway_intent: GatewayIntentService | None = None,
         project_control: ProjectControlService | None = None,
         scratch_status_fn: Callable[[], Dict[str, Any]] | None = None,
+        install_stats_status_fn: Callable[[], Dict[str, Any]] | None = None,
+        share_stats_status_fn: Callable[[], Dict[str, Any]] | None = None,
     ):
         self._probe = probe
         self._subsystems = subsystems
@@ -46,6 +48,8 @@ class SystemStatusRouteHandler:
         self._gateway_intent = gateway_intent
         self._project_control = project_control
         self._scratch_status_fn = scratch_status_fn
+        self._install_stats_status_fn = install_stats_status_fn
+        self._share_stats_status_fn = share_stats_status_fn
 
     def handle_get(self, path: str, query: Optional[str]) -> Optional[HttpRouteResponse]:
         qs = parse_qs(query or "")
@@ -85,6 +89,17 @@ class SystemStatusRouteHandler:
 
         if path == "/api/peers":
             return HttpRouteResponse.json({"ok": True, **self._peers.build()})
+
+        if path == "/api/peers/discovered":
+            refresh = (qs.get("refresh") or [""])[0].lower() in ("1", "true", "yes")
+            payload = self._peers.build_discovered(refresh=refresh)
+            return HttpRouteResponse.json({"ok": True, **payload})
+
+        if path == "/api/stats/install" and self._install_stats_status_fn is not None:
+            return HttpRouteResponse.json(self._install_stats_status_fn())
+
+        if path == "/api/share/stats" and self._share_stats_status_fn is not None:
+            return HttpRouteResponse.json(self._share_stats_status_fn())
 
         if path == "/api/connectivity/status":
             return HttpRouteResponse.json({"ok": True, "network": self._network.build()})

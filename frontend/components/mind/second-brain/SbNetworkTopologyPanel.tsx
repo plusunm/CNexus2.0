@@ -8,6 +8,7 @@ import { useCognitiveCopy, buildLabShellHref } from "@/lib/cognitive";
 import { useDashboardStatus } from "@/hooks/useDashboardStatus";
 import { useMindTheme } from "../MindUiProvider";
 import { MissionTopologyGraph } from "../home/MissionTopologyGraph";
+import { DiscoveredClientsPanel } from "../DiscoveredClientsPanel";
 import { SbCard, SbSection, SbStat } from "./SbUIKit";
 
 type Props = {
@@ -25,6 +26,14 @@ export function SbNetworkTopologyPanel({ asPage }: Props) {
 
   const deviceId = data?.node?.pubkey || data?.topology?.nodes?.[0]?.id || "";
   const shortId = data?.node?.pubkey_short || "—";
+  const identityErr = data?.identity?.error || "";
+  const identityHint = data?.identity?.hint || "";
+
+  const deviceIdHelp = (() => {
+    if (identityErr.startsWith("invalid_identity_key")) return copy("shareDeviceIdInvalidKey");
+    if (identityHint) return `${copy("shareDeviceIdMissing")} (${identityHint})`;
+    return copy("shareDeviceIdMissing");
+  })();
 
   const loadDht = useCallback(async () => {
     try {
@@ -104,6 +113,8 @@ export function SbNetworkTopologyPanel({ asPage }: Props) {
         />
       </SbCard>
 
+      <DiscoveredClientsPanel compact={!asPage} />
+
       <SbCard padding="sm">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="min-w-0 flex-1">
@@ -119,7 +130,7 @@ export function SbNetworkTopologyPanel({ asPage }: Props) {
             </p>
             {!deviceId && !loading ? (
               <p className="text-[11px] mt-1.5 leading-relaxed" style={{ color: t.textLight }}>
-                {copy("shareDeviceIdMissing")}
+                {deviceIdHelp}
               </p>
             ) : null}
           </div>

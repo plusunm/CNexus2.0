@@ -48,13 +48,25 @@ class _FakeService:
         self._error = error
         self.last_call = None
 
-    def run_blocking(self, input_text, *, model_id=None, converse_mode="fast", thinking_mode="precision", memory_scope="local"):
+    def run_blocking(
+        self,
+        input_text,
+        *,
+        model_id=None,
+        converse_mode="fast",
+        thinking_mode="precision",
+        memory_scope="local",
+        expert_mode=None,
+        expert_style_source="prompt",
+    ):
         self.last_call = {
             "input_text": input_text,
             "model_id": model_id,
             "converse_mode": converse_mode,
             "thinking_mode": thinking_mode,
             "memory_scope": memory_scope,
+            "expert_mode": expert_mode,
+            "expert_style_source": expert_style_source,
         }
         if self._error:
             raise self._error
@@ -81,6 +93,16 @@ class _ConfigStub:
     def parse_memory_scope(self, data):
         payload = data or {}
         return str(payload.get("memory_scope") or "local")
+
+    def parse_expert_profile(self, data):
+        payload = data or {}
+        expert_mode = payload.get("expert_mode")
+        if expert_mode is not None:
+            expert_mode = str(expert_mode).strip() or None
+        style = str(payload.get("expert_style_source") or payload.get("style_source") or "prompt").lower()
+        if style not in ("prompt", "recall", "off"):
+            style = "prompt"
+        return expert_mode, style
 
 
 class ConverseRouteHandlerTests(unittest.TestCase):

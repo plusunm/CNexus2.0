@@ -13,6 +13,7 @@ import { isFloatPersonalEdition } from "@/lib/floatPersonal";
 import { useFloatingBarStore } from "@/lib/floatingBarStore";
 import { isTauriDesktop } from "@/lib/tauriDesktop";
 import { FloatSelect } from "./FloatSelect";
+import { UploadCorpusOptions } from "../UploadCorpusOptions";
 
 const FLOAT_TABS: { id: ImportTab; label: string; icon: typeof UploadCloud }[] = [
   { id: "文档导入", label: "文档", icon: UploadCloud },
@@ -245,6 +246,16 @@ export function FloatingUploadPanel() {
         style={{ borderColor: t.border, backgroundColor: "rgba(0,0,0,0.1)" }}
         data-no-drag
       >
+        <UploadCorpusOptions
+          compact
+          corpus={imp.uploadCorpus.corpus}
+          onCorpusChange={imp.uploadCorpus.setCorpus}
+          subjectId={imp.uploadCorpus.subjectId}
+          onSubjectIdChange={imp.uploadCorpus.setSubjectId}
+          semanticDimension={imp.uploadCorpus.semanticDimension}
+          onSemanticDimensionChange={imp.uploadCorpus.setSemanticDimension}
+        />
+
         <div className="grid grid-cols-2 gap-2">
           <FloatSelect
             label="记忆层"

@@ -246,3 +246,10 @@ class DHTService:
             "stored_values": len(self._store),
             "last_lookup": dict(self.last_lookup),
         }
+
+    def list_nodes(self) -> List[dict]:
+        """All contacts currently held in the routing table."""
+        with self._lock:
+            rows = [dict(row) for bucket in self._buckets.values() for row in bucket.values()]
+        rows.sort(key=lambda row: float(row.get("last_seen") or 0), reverse=True)
+        return rows

@@ -7,6 +7,7 @@ import { parseConnectApplication, type ApplicationConnectSnapshot } from "@/lib/
 import { bi, navL } from "@/lib/spine/labels";
 import { useMindTheme } from "../MindUiProvider";
 import { RepairGatePanel } from "../shared/RepairGatePanel";
+import { DiscoveredClientsPanel } from "../DiscoveredClientsPanel";
 
 type TrustedPeerRow = {
   pubkey: string;
@@ -158,6 +159,8 @@ export function NetworkConnectLayout() {
           </div>
         ))}
       </section>
+
+      <DiscoveredClientsPanel />
 
       <section
         className="rounded-xl border p-3 space-y-2"

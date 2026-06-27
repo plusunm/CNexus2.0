@@ -32,3 +32,6 @@ class NetworkStatusService:
     def dht_status(self) -> Dict[str, Any]:
         dht = self._hooks.get_dht_service()
         return dht.status() if dht else {"enabled": False}
+
+    def get_dht_service(self) -> Any:
+        return self._hooks.get_dht_service()

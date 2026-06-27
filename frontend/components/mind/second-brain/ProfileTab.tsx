@@ -5,6 +5,7 @@ import { useMindOverview } from "@/cnexus-kernel";
 import { useCognitiveCopy } from "@/lib/cognitive";
 import { useMindTheme } from "../MindUiProvider";
 import { LanguageProjectionSwitch } from "../LanguageProjectionSwitch";
+import { InstallStatsOptInPanel } from "../InstallStatsOptInPanel";
 import { OllamaConnectionBadge } from "../OllamaConnectionBadge";
 import { SbSection, SbCard } from "./SbUIKit";
 import { isPersonalMode } from "@/lib/personalGuard";
@@ -43,6 +44,8 @@ export function ProfileTab() {
           )}
         </SbCard>
       </SbSection>
+
+      <InstallStatsOptInPanel />
 
       <SbSection title={copy("appearanceSection")} icon={Globe}>
         <SbCard padding="sm">

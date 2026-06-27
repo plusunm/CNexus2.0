@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional, Tuple
 
 from ..http.responses import HttpRouteResponse
-from ..services.ingest import DocumentIngestService
+from ..services.ingest import DocumentIngestService, _policy_from_form_fields
 from ..utils.multipart import iter_uploaded_files, parse_multipart, read_uploaded_file
 
 JsonResponse = Tuple[Dict[str, Any], int]
@@ -46,15 +46,9 @@ class IngestRouteHandler:
         raw, filename = read_uploaded_file(form)
         if raw is None:
             return {"ok": False, "error": "missing file"}, 400
-        layer = "episodic"
-        importance = 0.7
-        if "layer" in form:
-            layer = str(form["layer"].value or "episodic")
-        if "importance" in form:
-            try:
-                importance = float(form["importance"].value or "0.7")
-            except (TypeError, ValueError):
-                importance = 0.7
+        policy = _policy_from_form_fields(form)
+        layer = str(policy.get("layer") or "episodic")
+        importance = float(policy.get("importance") or 0.7)
         label = None
         if "label" in form:
             label = str(form["label"].value or "").strip() or None
@@ -64,6 +58,7 @@ class IngestRouteHandler:
             layer=layer,
             importance=importance,
             label=label,
+            policy=policy,
         )
 
     def handle_api_ingest_documents(self, rfile, headers) -> JsonResponse:
@@ -73,16 +68,15 @@ class IngestRouteHandler:
         uploads = iter_uploaded_files(form)
         if not uploads:
             return {"ok": False, "error": "missing files"}, 400
-        layer = "episodic"
-        importance = 0.7
-        if "layer" in form:
-            layer = str(form["layer"].value or "episodic")
-        if "importance" in form:
-            try:
-                importance = float(form["importance"].value or "0.7")
-            except (TypeError, ValueError):
-                importance = 0.7
-        return self._service.ingest_documents_batch(uploads, layer=layer, importance=importance)
+        policy = _policy_from_form_fields(form)
+        layer = str(policy.get("layer") or "episodic")
+        importance = float(policy.get("importance") or 0.7)
+        return self._service.ingest_documents_batch(
+            uploads,
+            layer=layer,
+            importance=importance,
+            policy=policy,
+        )
 
     def handle_api_stage_documents(self, rfile, headers) -> JsonResponse:
         form = parse_multipart(rfile, headers)

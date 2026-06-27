@@ -9,6 +9,7 @@ import {
 import { DOCUMENT_ACCEPT } from "@/lib/documentIngest";
 import { FileStack, FileText, Link2, UploadCloud } from "lucide-react";
 import { EmbeddingModeBadge } from "./EmbeddingModeBadge";
+import { UploadCorpusOptions } from "./UploadCorpusOptions";
 import { useMindTheme } from "./MindUiProvider";
 
 type PanelVariant = "overview" | "cognitive" | "float";
@@ -158,6 +159,15 @@ export function UploadPanel({
 
   const renderTargetSelectors = () => (
     <div className="grid grid-cols-1 gap-2 text-xs shrink-0">
+      <UploadCorpusOptions
+        compact
+        corpus={imp.uploadCorpus.corpus}
+        onCorpusChange={imp.uploadCorpus.setCorpus}
+        subjectId={imp.uploadCorpus.subjectId}
+        onSubjectIdChange={imp.uploadCorpus.setSubjectId}
+        semanticDimension={imp.uploadCorpus.semanticDimension}
+        onSemanticDimensionChange={imp.uploadCorpus.setSemanticDimension}
+      />
       <label className="flex flex-col gap-1">
         <span className="inline-flex items-center gap-1" style={{ color: t.textMuted }}>
           目标类型

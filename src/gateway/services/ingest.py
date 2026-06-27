@@ -30,6 +30,51 @@ def _expert_meta_from_policy(policy: Optional[Dict[str, Any]], filename: str = "
     }
 
 
+def _policy_from_form_fields(form) -> Dict[str, Any]:
+    policy: Dict[str, Any] = {}
+    if "layer" in form:
+        policy["layer"] = str(form["layer"].value or "episodic")
+    if "importance" in form:
+        try:
+            policy["importance"] = float(form["importance"].value or "0.7")
+        except (TypeError, ValueError):
+            policy["importance"] = 0.7
+    if "subject_id" in form:
+        sid = str(form["subject_id"].value or "").strip()
+        if sid:
+            policy["subject_id"] = sid
+    if "expert_id" in form and "subject_id" not in policy:
+        sid = str(form["expert_id"].value or "").strip()
+        if sid:
+            policy["subject_id"] = sid
+    if "semantic_dimension" in form:
+        policy["semantic_dimension"] = str(form["semantic_dimension"].value or "fact")
+    if "distill_mode" in form:
+        policy["distill_mode"] = str(form["distill_mode"].value or "ingest")
+    return policy
+
+
+def _apply_expert_meta_to_block(
+    block: Dict[str, Any],
+    policy: Optional[Dict[str, Any]],
+    filename: str = "",
+) -> Dict[str, Any]:
+    expert_meta = _expert_meta_from_policy(policy, filename)
+    if not expert_meta or not expert_meta.get("subject_id"):
+        return block
+    try:
+        from plugins.expert_distill.tagging import stamp_expert_metadata
+
+        return stamp_expert_metadata(
+            block,
+            subject_id=str(expert_meta.get("subject_id")),
+            semantic_dimension=str(expert_meta.get("semantic_dimension") or "fact"),
+            distill_mode=str(expert_meta.get("distill_mode") or "ingest"),
+        )
+    except ImportError:
+        return block
+
+
 def fast_track_rank(filename: str) -> int:
     """0 = text fast path, 1 = heavier formats."""
     ext = os.path.splitext(str(filename or ""))[1].lstrip(".").lower()
@@ -168,15 +213,19 @@ class DocumentIngestService:
                 mem_id = f"mem-{batch_id}-{idx}"
                 memory_level = infer_memory_level_from_ingest(filename, content)
                 pending_blocks.append(
-                    stamp_block_protection(
-                        {
-                            "label": layer,
-                            "block_id": mem_id,
-                            "data": {"filename": filename, "content": snippet, "keywords": keywords},
-                            "importance": importance,
-                            "timestamp": base_ts + idx * 0.001,
-                        },
-                        memory_level,
+                    _apply_expert_meta_to_block(
+                        stamp_block_protection(
+                            {
+                                "label": layer,
+                                "block_id": mem_id,
+                                "data": {"filename": filename, "content": snippet, "keywords": keywords},
+                                "importance": importance,
+                                "timestamp": base_ts + idx * 0.001,
+                            },
+                            memory_level,
+                        ),
+                        policy,
+                        filename,
                     )
                 )
                 preview = content[: self.PREVIEW_CHARS] if content else filename
@@ -351,6 +400,7 @@ class DocumentIngestService:
         layer: str = "episodic",
         importance: float = 0.7,
         label: Optional[str] = None,
+        policy: Optional[Dict[str, Any]] = None,
     ) -> Tuple[Dict[str, Any], int]:
         """One-shot Personal API: upload + index."""
         if not raw:
@@ -359,6 +409,9 @@ class DocumentIngestService:
         content = decode_upload_bytes(raw)
         file_id = f"file-{int(time.time() * 1000)}"
         self._persist_asset_blob(file_id, filename, raw)
+        merged_policy = dict(policy or {})
+        merged_policy.setdefault("layer", layer)
+        merged_policy.setdefault("importance", importance)
         indexed = self._index_document(
             filename=label or filename,
             content=content,
@@ -366,6 +419,7 @@ class DocumentIngestService:
             importance=importance,
             file_id=file_id,
             source="api_ingest_document",
+            policy=merged_policy,
         )
         return {
             "ok": True,
@@ -384,6 +438,7 @@ class DocumentIngestService:
         *,
         layer: str = "episodic",
         importance: float = 0.7,
+        policy: Optional[Dict[str, Any]] = None,
     ) -> Tuple[Dict[str, Any], int]:
         """Bulk one-shot ingest — single memory lock, no per-file blobs or keyword blocks."""
         if not files:
@@ -407,15 +462,19 @@ class DocumentIngestService:
             mem_id = f"mem-{batch_id}-{idx}"
             memory_level = infer_memory_level_from_ingest(filename, content)
             pending_blocks.append(
-                stamp_block_protection(
-                    {
-                        "label": layer,
-                        "block_id": mem_id,
-                        "data": {"filename": filename, "content": snippet, "keywords": keywords},
-                        "importance": importance,
-                        "timestamp": base_ts + idx * 0.001,
-                    },
-                    memory_level,
+                _apply_expert_meta_to_block(
+                    stamp_block_protection(
+                        {
+                            "label": layer,
+                            "block_id": mem_id,
+                            "data": {"filename": filename, "content": snippet, "keywords": keywords},
+                            "importance": importance,
+                            "timestamp": base_ts + idx * 0.001,
+                        },
+                        memory_level,
+                    ),
+                    policy,
+                    filename,
                 )
             )
             preview = content[: self.PREVIEW_CHARS] if content else filename

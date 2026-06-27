@@ -942,9 +942,116 @@ _persist_lock = threading.Lock()
 _persist_timer = None
 _persist_meta = {"saved_at": None, "loaded_at": None}
 
-# ── Ed25519 node identity (sovereign anchor) ──
+# ── Anonymous install stats (opt-in, once per install_id) ──
+_APP_VERSION = os.environ.get("CNEXUS_VERSION", "2.4.0")
+_APP_EDITION = os.environ.get("CNEXUS_EDITION", "personal")
+
+
+def _install_stats_module():
+    return _load_core_module("install_stats", "install_stats.py")
+
+
+def _install_stats_status():
+    return _install_stats_module().public_status(
+        _PERSIST_DIR,
+        version=_APP_VERSION,
+        edition=_APP_EDITION,
+    )
+
+
+def _share_stats_module():
+    return _load_core_module("share_stats", "share_stats.py")
+
+
+def _share_stats_status():
+    share_boot = _load_application_module("application_share_boot", "share_boot.py")
+    catalog_svc = _get_catalog_service()
+    catalog_meta: dict = {"generation": 0, "graph_count": 0}
+    graphs: list = []
+    if catalog_svc is not None:
+        try:
+            st = catalog_svc.status()
+            catalog_meta = dict(st.get("catalog") or st)
+            for entry in catalog_svc.store.list_entries(limit=32):
+                owner = str(getattr(entry, "owner", "") or "")
+                gid = str(getattr(entry, "graph_id", "") or "")
+                graphs.append(
+                    {
+                        "graph_id": gid,
+                        "graph_id_short": f"{gid[:10]}…" if len(gid) > 10 else gid,
+                        "owner": owner,
+                        "owner_short": f"{owner[:10]}…" if len(owner) > 10 else owner,
+                        "topic": str(getattr(entry, "topic", "") or ""),
+                        "head_generation": int(getattr(entry, "head_generation", 0) or 0),
+                        "updated_at": float(getattr(entry, "updated_at", 0) or 0),
+                    }
+                )
+        except Exception:
+            pass
+
+    discovered: dict = {}
+    try:
+        if _peers_status_service is not None:
+            discovered = _peers_status_service.build_discovered(refresh=False)
+    except Exception:
+        discovered = {}
+
+    base = _share_stats_module().public_status(
+        _PERSIST_DIR,
+        sharing_enabled=share_boot.share_local_memory_enabled(),
+        version=_APP_VERSION,
+        edition=_APP_EDITION,
+        fetch_remote=False,
+    )
+    memory_blocks = len(_engine_state.get("memory_store", {}).blocks or [])
+
+    sharing_owners = {
+        str(g.get("owner") or "").strip().lower()
+        for g in graphs
+        if str(g.get("owner") or "").strip()
+    }
+    graph_count = int(catalog_meta.get("graph_count") or 0)
+
+    return {
+        **base,
+        "local_memory_blocks": memory_blocks,
+        "always_share": share_boot.share_local_memory_always(),
+        "catalog": {**catalog_meta, "graphs": graphs},
+        "visible": {
+            "graph_count": graph_count,
+            "sharing_client_count": len(sharing_owners),
+        },
+        "mesh": {
+            "client_count": int(discovered.get("count") or 0),
+            "online_count": int(discovered.get("online_count") or 0),
+            "trusted_count": int(discovered.get("trusted_count") or 0),
+            "discovered_count": int(discovered.get("discovered_count") or 0),
+        },
+    }
+
+
+def _install_stats_set_opt_in(enabled: bool):
+    return _install_stats_module().set_opt_in(
+        _PERSIST_DIR,
+        bool(enabled),
+        version=_APP_VERSION,
+        edition=_APP_EDITION,
+    )
+
+
+def _schedule_install_stats_ping():
+    try:
+        _install_stats_module().schedule_first_ping(
+            _PERSIST_DIR,
+            version=_APP_VERSION,
+            edition=_APP_EDITION,
+        )
+    except Exception:
+        pass
+
 _identity_lock = threading.Lock()
 _identity_manager = None
+_identity_load_error = ""
 _identity_optional = os.environ.get("CNEXUS_IDENTITY_DISABLE", "").lower() in ("1", "true", "yes")
 
 
@@ -953,8 +1060,9 @@ def _identity_key_path():
 
 
 def _get_identity_manager():
-    global _identity_manager
+    global _identity_manager, _identity_load_error
     if _identity_optional:
+        _identity_load_error = ""
         return None
     if _identity_manager is not None:
         return _identity_manager
@@ -964,8 +1072,19 @@ def _get_identity_manager():
         try:
             _id_mod = _load_core_module("identity_manager", "identity_manager.py")
             _identity_manager = _id_mod.IdentityManager(_identity_key_path())
-        except Exception:
+            _identity_load_error = ""
+        except ModuleNotFoundError as exc:
             _identity_manager = None
+            if "nacl" in str(exc).lower():
+                _identity_load_error = "missing_pynacl"
+            else:
+                _identity_load_error = str(exc) or "module_not_found"
+        except ValueError as exc:
+            _identity_manager = None
+            _identity_load_error = f"invalid_identity_key: {exc}"
+        except Exception as exc:
+            _identity_manager = None
+            _identity_load_error = str(exc) or exc.__class__.__name__
         return _identity_manager
 
 
@@ -3792,6 +3911,7 @@ def _init_status_gateway():
                 identity_optional=_identity_optional,
                 identity_key_path=_identity_key_path,
                 get_identity_manager=_get_identity_manager,
+                identity_load_error=lambda: _identity_load_error,
             ),
             audit_chain=AuditChainStatusHooks(
                 audit_optional=_audit_optional,
@@ -3824,6 +3944,8 @@ def _init_status_gateway():
                 peer_registry_path=_peer_registry_path,
                 get_peer_registry=_get_peer_registry,
                 get_gossip_sync=_get_gossip_sync,
+                get_local_pubkey=lambda: str((_identity_status().get("pubkey") or "")),
+                get_server_port=lambda: int(_SERVER_PORT),
             ),
             dashboard=DashboardStatusHooks(
                 get_metrics_module=_get_metrics_module,
@@ -3897,6 +4019,8 @@ def _init_status_routes_gateway():
         _gateway_intent_service,
         project_control=_project_control_service,
         scratch_status_fn=_scratch_status,
+        install_stats_status_fn=_install_stats_status,
+        share_stats_status_fn=_share_stats_status,
     )
 
 
@@ -4057,6 +4181,7 @@ def _init_control_routes_gateway():
         _gateway_intent_service,
         project_control=_project_control_service,
         clear_scratch=_clear_conversation_scratch,
+        install_stats_opt_in_fn=_install_stats_set_opt_in,
     )
 
 
@@ -4265,6 +4390,7 @@ def main():
     print(f"   POST /api/dht/rpc — Kademlia FIND_NODE / STORE")
     print(f"   POST /api/network/firewall/ban — evict malicious peer from routing")
     print(f"   Env  CNEXUS_BIND_HOST=0.0.0.0 CNEXUS_PUBLIC_URL= CNEXUS_DHT_BOOTSTRAP=")
+    print(f"   Env  CNEXUS_STATS_URL= + CNEXUS_STATS_OPT_IN=1 — anonymous first-install ping (optional)")
     print(f"   POST /api/reflect/meta — metacognitive reflection over AuditLog")
     print(f"   POST /api/conflict/resolve — adversarial memory conflict merge/fork")
     print(f"   GET  /api/entropy/status — local + mesh consensus entropy (Genesis XOR)")
@@ -4284,13 +4410,16 @@ def main():
     if identity.get("loaded"):
         print(f"   Identity Ed25519: {identity.get('pubkey', '')[:16]}…")
     elif identity.get("enabled"):
-        print("   Identity: enabled (install pynacl: pip install pynacl)")
+        hint = identity.get("hint") or "pip install pynacl"
+        err = identity.get("error") or "not_loaded"
+        print(f"   Identity: FAILED ({err}) — {hint}")
     if audit_state.get("ok") is False:
         print(f"   ⚠ Audit chain integrity FAILED: {audit_state.get('message')}")
     elif audit_state.get("entries", 0):
         print(f"   Audit chain: {audit_state.get('entries')} entries · {audit_state.get('message')}")
     _start_rem_watchdog()
     _start_peer_heartbeat()
+    _schedule_install_stats_ping()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

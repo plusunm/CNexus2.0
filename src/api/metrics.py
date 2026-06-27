@@ -286,6 +286,7 @@ def build_dashboard_status(
         "conflict": conflict_resolution_status or {},
         "pruning": pruning_status or {},
         "entropy": entropy_status or {},
+        "identity": identity,
     }
 
 

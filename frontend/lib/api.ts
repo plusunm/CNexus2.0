@@ -13,6 +13,26 @@ import { getApiBase, getWsBase, getApiToken } from "./cnexusConfig";
 import { humanizeNetworkConnectError } from "./networkConnectErrors";
 import { isPersonalMode, isWebSocketEnabled, shouldSuppressRuntimeConnectError } from "./personalGuard";
 import { statusToMindOverview, converseToMindOverview } from "../src/adapters/cnexus_v2.adapter";
+import { buildExpertIngestFields, type IngestExpertFields } from "./uploadCorpusOptions";
+
+type DocumentIngestOpts = {
+  layer?: string;
+  importance?: number;
+  cognize?: boolean;
+  goal?: string;
+} & IngestExpertFields;
+
+function appendExpertFormFields(form: FormData, opts: DocumentIngestOpts): void {
+  const expert = buildExpertIngestFields(opts);
+  if (!expert) return;
+  form.append("subject_id", expert.subject_id);
+  form.append("semantic_dimension", expert.semantic_dimension);
+  form.append("distill_mode", expert.distill_mode);
+}
+
+function expertPolicyFields(opts: DocumentIngestOpts): Record<string, string> {
+  return buildExpertIngestFields(opts) ?? {};
+}
 
 export type { RuntimeState, MindOverview } from "./runtimeTypes";
 export type { CognitiveOutput } from "./cognitiveTypes";
@@ -494,18 +514,56 @@ export async function gatewayIntentExecute<T>(
   return waitGatewayIntentCompletion<T>(traceId, started, timeoutMs);
 }
 
+export async function expertCapture(opts: {
+  subjectId: string;
+  content: string;
+  semanticDimension?: string;
+}): Promise<{ ok?: boolean; memory_id?: string; subject_id?: string }> {
+  const expert = buildExpertIngestFields({
+    corpus: "expert",
+    subjectId: opts.subjectId,
+    semanticDimension: (opts.semanticDimension as IngestExpertFields["semanticDimension"]) ?? "style",
+  });
+  if (!expert) {
+    throw new Error("专家语料导入缺少 subject_id");
+  }
+  return request("/api/expert/capture", {
+    method: "POST",
+    body: JSON.stringify({
+      subject_id: expert.subject_id,
+      content: opts.content,
+      semantic_dimension: expert.semantic_dimension,
+    }),
+  });
+}
+
 async function ingestDocumentViaPersonalCapture(
   file: File,
-  opts: {
-    layer?: string;
-    importance?: number;
-    goal?: string;
-  },
+  opts: DocumentIngestOpts,
 ): Promise<IngestDocumentResult> {
   const raw = await file.text().catch(() => "");
   const content = raw.trim();
   if (!content) {
     throw new Error("无法读取文档内容，请确认文件为文本格式或 Gateway 可用");
+  }
+  const expert = buildExpertIngestFields(opts);
+  if (expert) {
+    const captured = await expertCapture({
+      subjectId: expert.subject_id,
+      content: content.slice(0, 20_000),
+      semanticDimension: expert.semantic_dimension,
+    });
+    const ext = file.name.includes(".") ? file.name.split(".").pop() ?? "txt" : "txt";
+    return {
+      memory_id: captured.memory_id ?? "expert-capture",
+      status: "stored",
+      filename: file.name,
+      format: ext,
+      char_count: content.length,
+      preview: content.slice(0, 400),
+      truncated: content.length > 400,
+      keywords: [],
+    };
   }
   const captured = await request<{ memory_id: string }>(
     "/v1/memory/capture",
@@ -536,17 +594,14 @@ async function ingestDocumentViaPersonalCapture(
 
 async function ingestDocumentViaOneShot(
   file: File,
-  opts: {
-    layer?: string;
-    importance?: number;
-    goal?: string;
-  } = {},
+  opts: DocumentIngestOpts = {},
 ): Promise<IngestDocumentResult> {
   const form = new FormData();
   form.append("file", file, file.name);
   form.append("layer", opts.layer ?? "episodic");
   form.append("importance", String(opts.importance ?? 0.7));
   if (opts.goal?.trim()) form.append("label", opts.goal.trim());
+  appendExpertFormFields(form, opts);
 
   const data = await requestMultipart<{
     ok?: boolean;
@@ -574,12 +629,7 @@ async function ingestDocumentViaOneShot(
 
 async function ingestDocumentViaGatewayTwoStep(
   file: File,
-  opts: {
-    layer?: string;
-    importance?: number;
-    cognize?: boolean;
-    goal?: string;
-  } = {},
+  opts: DocumentIngestOpts = {},
 ): Promise<IngestDocumentResult> {
   const form = new FormData();
     form.append("file", file, file.name);
@@ -588,6 +638,7 @@ async function ingestDocumentViaGatewayTwoStep(
     form.append("cognize", "false");
     form.append("process", "false");
     if (opts.goal?.trim()) form.append("goal", opts.goal.trim());
+    appendExpertFormFields(form, opts);
 
     const upload = await requestMultipart<{
       file_id: string;
@@ -617,6 +668,7 @@ async function ingestDocumentViaGatewayTwoStep(
           chunk: true,
           summarize: true,
           index: true,
+          ...expertPolicyFields(opts),
         },
       },
       180_000,
@@ -642,12 +694,7 @@ async function ingestDocumentViaGatewayTwoStep(
 
 async function ingestDocumentViaGateway(
   file: File,
-  opts: {
-    layer?: string;
-    importance?: number;
-    cognize?: boolean;
-    goal?: string;
-  } = {},
+  opts: DocumentIngestOpts = {},
 ): Promise<IngestDocumentResult> {
   try {
     return await ingestDocumentViaOneShot(file, opts);
@@ -705,11 +752,7 @@ function batchItemToResult(item: IngestDocumentBatchResult["indexed"][number]): 
 
 async function ingestDocumentBatch(
   files: File[],
-  opts: {
-    layer?: string;
-    importance?: number;
-    goal?: string;
-  } = {},
+  opts: DocumentIngestOpts = {},
 ): Promise<IngestDocumentResult[]> {
   const form = new FormData();
   for (const file of files) {
@@ -717,6 +760,7 @@ async function ingestDocumentBatch(
   }
   form.append("layer", opts.layer ?? "episodic");
   form.append("importance", String(opts.importance ?? 0.7));
+  appendExpertFormFields(form, opts);
   const timeoutMs = Math.min(300_000, 30_000 + files.length * 2_000);
   const data = await requestMultipart<IngestDocumentBatchResult>(
     "/api/ingest/documents",
@@ -749,7 +793,7 @@ async function stageDocumentBatch(
 async function submitFileProcessBatch(
   traceId: string,
   fileIds: string[],
-  opts: { layer?: string; importance?: number },
+  opts: DocumentIngestOpts,
 ): Promise<GatewayIntentResponse> {
   return request<GatewayIntentResponse>(
     "/v1/gateway/intent",
@@ -763,6 +807,7 @@ async function submitFileProcessBatch(
           policy: {
             layer: opts.layer ?? "episodic",
             importance: opts.importance ?? 0.7,
+            ...expertPolicyFields(opts),
           },
         },
       }),
@@ -776,6 +821,73 @@ export type IngestDocumentsSubmit = {
   traceIds: string[];
 };
 
+export type DiscoveredClientRow = {
+  pubkey: string;
+  pubkey_short?: string;
+  host?: string;
+  status?: string;
+  trusted?: boolean;
+  sources?: string[];
+  last_seen?: number;
+};
+
+export type InstallStatsStatus = {
+  ok?: boolean;
+  configured?: boolean;
+  stats_url_set?: boolean;
+  opt_in?: boolean;
+  opt_in_ui?: boolean;
+  opt_in_env?: string;
+  install_id?: string | null;
+  install_id_short?: string | null;
+  first_ping_sent?: boolean;
+  first_ping_sent_at?: number | null;
+  last_ping_error?: string | null;
+  version?: string;
+  edition?: string;
+  error?: string;
+};
+
+export type ShareStatsStatus = {
+  ok?: boolean;
+  sharing_enabled?: boolean;
+  always_share?: boolean;
+  stats_url_set?: boolean;
+  graph_id?: string | null;
+  block_count?: number;
+  local_memory_blocks?: number;
+  share_count?: number;
+  last_shared_at?: number | null;
+  last_registry_ping_at?: number | null;
+  last_registry_error?: string | null;
+  version?: string;
+  edition?: string;
+  catalog?: {
+    generation?: number;
+    graph_count?: number;
+    graphs?: Array<{
+      graph_id?: string;
+      graph_id_short?: string;
+      owner?: string;
+      owner_short?: string;
+      topic?: string;
+      head_generation?: number;
+      updated_at?: number;
+    }>;
+  };
+  visible?: {
+    graph_count?: number;
+    sharing_client_count?: number;
+  };
+  mesh?: {
+    client_count?: number;
+    online_count?: number;
+    trusted_count?: number;
+    discovered_count?: number;
+  };
+  error?: string;
+};
+
 export async function waitForDocumentIngest(traceIds: string[]): Promise<void> {
   const started = Date.now();
   const timeoutMs = 300_000;
@@ -786,11 +898,7 @@ export async function waitForDocumentIngest(traceIds: string[]): Promise<void> {
 
 async function ingestDocumentsAsync(
   files: File[],
-  opts: {
-    layer?: string;
-    importance?: number;
-    goal?: string;
-  } = {},
+  opts: DocumentIngestOpts = {},
 ): Promise<IngestDocumentsSubmit> {
   const items: IngestDocumentResult[] = [];
   const traceIds: string[] = [];
@@ -821,12 +929,7 @@ async function ingestDocumentsAsync(
 
 export async function ingestDocumentFiles(
   files: File[],
-  opts: {
-    layer?: string;
-    importance?: number;
-    cognize?: boolean;
-    goal?: string;
-  } = {},
+  opts: DocumentIngestOpts = {},
   options: { wait?: boolean } = {},
 ): Promise<IngestDocumentsSubmit> {
   if (files.length === 0) return { items: [], traceIds: [] };
@@ -1793,6 +1896,54 @@ export const cnexusProductApi = {
       throw new Error("Peers status unavailable");
     }
     return data.peers || {};
+  },
+  fetchInstallStats: async () => {
+    const resp = await fetch(`${getApiBase()}/api/stats/install`, { cache: "no-store" });
+    const data = (await resp.json().catch(() => ({}))) as InstallStatsStatus;
+    if (!resp.ok || data.ok === false) {
+      throw new Error("Install stats status unavailable");
+    }
+    return data;
+  },
+  fetchShareStats: async () => {
+    const resp = await fetch(`${getApiBase()}/api/share/stats`, { cache: "no-store" });
+    const data = (await resp.json().catch(() => ({}))) as ShareStatsStatus;
+    if (!resp.ok || data.ok === false) {
+      throw new Error(String(data.error || "Share stats unavailable"));
+    }
+    return data;
+  },
+  setInstallStatsOptIn: async (enabled: boolean) => {
+    const resp = await fetch(`${getApiBase()}/api/stats/opt-in`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    });
+    const data = (await resp.json().catch(() => ({}))) as InstallStatsStatus & { error?: string };
+    if (!resp.ok || data.ok === false) {
+      throw new Error(String(data.error || "Failed to update install stats preference"));
+    }
+    return data;
+  },
+  fetchDiscoveredClients: async (refresh = false) => {
+    const qs = refresh ? "?refresh=1" : "";
+    const resp = await fetch(`${getApiBase()}/api/peers/discovered${qs}`, { cache: "no-store" });
+    const data = (await resp.json().catch(() => ({}))) as {
+      ok?: boolean;
+      clients?: DiscoveredClientRow[];
+      count?: number;
+      trusted_count?: number;
+      online_count?: number;
+      discovered_count?: number;
+      refreshed?: boolean;
+      lan_scan_ok?: boolean;
+      lan_found?: number;
+      error?: string;
+    };
+    if (!resp.ok || data.ok === false) {
+      throw new Error(String(data.error || "Discovered clients unavailable"));
+    }
+    return data;
   },
   banPeer: async (peerId: string, reason = "ui_ban") => {
     const resp = await fetch(`${getApiBase()}/api/network/firewall/ban`, {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { brainApi } from "@/lib/api";
+import { brainApi, expertCapture } from "@/lib/api";
 import { useMindOverview, useMindStore } from "@/cnexus-kernel";
 import { loadDingTalkConfig, sendDingTalkTest } from "@/lib/floatIntegrations";
 import {
@@ -10,6 +10,7 @@ import {
   pollDocumentIngestProgress,
   readLocalTextFile,
 } from "@/lib/documentIngest";
+import { useUploadCorpusState } from "@/components/mind/UploadCorpusOptions";
 import {
   buildDocumentUploadGate,
   buildMemoryWriteGate,
@@ -77,6 +78,7 @@ export function useMemoryImport({
   const [relatedGoal, setRelatedGoal] = useState("");
   const [importNote, setImportNote] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const uploadCorpus = useUploadCorpusState();
 
   const docInputRef = useRef<HTMLInputElement>(null);
   const batchInputRef = useRef<HTMLInputElement>(null);
@@ -140,6 +142,16 @@ export function useMemoryImport({
     }
     if (!(await guardWriteReady("memory"))) return false;
     try {
+      if (uploadCorpus.corpus === "expert") {
+        await expertCapture({
+          subjectId: uploadCorpus.subjectId,
+          content: payload,
+          semanticDimension: uploadCorpus.semanticDimension,
+        });
+        setFiles((f) => [...f, new File([text], label)]);
+        await finishImportSuccess(label, payload, undefined, navigateAfterImport);
+        return true;
+      }
       const result = await brainApi.capture(payload, layer, "user", 0.7, true);
       setFiles((f) => [...f, new File([text], label)]);
       const traits = Array.isArray(result.cognition?.traits)
@@ -172,6 +184,7 @@ export function useMemoryImport({
           layer,
           goal: activeGoal || undefined,
           cognize: false,
+          ...uploadCorpus.ingestExpertFields,
         });
         ok = items.length;
         fail = picked.length - ok;
@@ -361,5 +374,6 @@ export function useMemoryImport({
     clearFiles,
     startImport,
     importButtonLabel,
+    uploadCorpus,
   };
 }

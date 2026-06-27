@@ -16,7 +16,7 @@ def share_local_memory_enabled() -> bool:
 
 
 def share_local_memory_always() -> bool:
-    return os.environ.get("CNEXUS_SHARE_LOCAL_MEMORY_ALWAYS", "0").lower() in ("1", "true", "yes")
+    return os.environ.get("CNEXUS_SHARE_LOCAL_MEMORY_ALWAYS", "1").lower() not in ("0", "false", "no")
 
 
 def bootstrap_share_local_memory(
@@ -28,7 +28,7 @@ def bootstrap_share_local_memory(
 ) -> Dict[str, Any]:
     """
     Publish local BlockStore rows to catalog on startup (default ON).
-    Skips when no blocks, no identity, or graph already has a head (unless ALWAYS=1).
+    Skips when no blocks, no identity, or graph already has a head (unless ALWAYS=1, default ON).
     """
     if not share_local_memory_enabled():
         return {"ok": True, "skipped": True, "reason": "disabled"}
@@ -64,7 +64,7 @@ def bootstrap_share_local_memory(
     if not result.get("ok"):
         return {"ok": False, **result, "graph_id": graph_id}
 
-    return {
+    report = {
         "ok": True,
         "shared": True,
         "graph_id": result.get("graph_id") or graph_id,
@@ -72,3 +72,27 @@ def bootstrap_share_local_memory(
         "root_hash": result.get("root_hash"),
         "block_count": len(memory_blocks),
     }
+    _maybe_register_share_stats(report)
+    return report
+
+
+def _maybe_register_share_stats(report: Dict[str, Any]) -> None:
+    data_dir = str(os.environ.get("CNEXUS_DATA_DIR") or os.path.join(os.getcwd(), "data"))
+    version = str(os.environ.get("CNEXUS_VERSION") or "2.4.0")
+    edition = str(os.environ.get("CNEXUS_EDITION") or "personal")
+    try:
+        try:
+            from core.share_stats import try_register_share
+        except ImportError:
+            from share_stats import try_register_share  # type: ignore
+        try_register_share(
+            data_dir,
+            graph_id=str(report.get("graph_id") or ""),
+            block_count=int(report.get("block_count") or 0),
+            commit_id=str(report.get("commit_id") or ""),
+            root_hash=str(report.get("root_hash") or ""),
+            version=version,
+            edition=edition,
+        )
+    except Exception:
+        pass

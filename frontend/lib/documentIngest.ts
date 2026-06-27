@@ -17,11 +17,16 @@ export type { IngestDocumentResult, IngestDocumentsSubmit };
 
 const TEXT_EXT = /\.(txt|md|markdown)$/i;
 
+import type { ExpertSemanticDimension, UploadCorpusMode } from "@/lib/uploadCorpusOptions";
+
 export type IngestFileOptions = {
   layer?: string;
   importance?: number;
   cognize?: boolean;
   goal?: string;
+  corpus?: UploadCorpusMode;
+  subjectId?: string;
+  semanticDimension?: ExpertSemanticDimension;
 };
 
 /** Demo/local text read for plain-text files only. */
@@ -44,6 +49,9 @@ export async function ingestDocumentFile(
     importance: opts.importance ?? 0.7,
     cognize: opts.cognize ?? true,
     goal: opts.goal,
+    corpus: opts.corpus,
+    subjectId: opts.subjectId,
+    semanticDimension: opts.semanticDimension,
   });
   const result = items[0];
   if (!result) throw new Error("导入失败");

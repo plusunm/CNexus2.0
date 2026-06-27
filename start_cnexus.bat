@@ -22,17 +22,25 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [1/4] Check port 7864...
+echo [1/5] Check PyNaCl (device identity)...
+call "%~dp0scripts\ensure_pynacl.bat"
+if errorlevel 1 (
+    echo [ERROR] Device ID requires PyNaCl. Fix pip install, then restart.
+    pause
+    exit /b 1
+)
+
+echo [2/5] Check port 7864...
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":7864" ^| findstr "LISTENING"') do (
     taskkill /f /pid %%a >nul 2>&1
 )
 ping -n 2 127.0.0.1 >nul
 
-echo [2/4] Start gateway (hidden)...
+echo [3/5] Start gateway (hidden)...
 if exist gateway.log del /f /q gateway.log >nul 2>&1
 wscript.exe //nologo "%~dp0run_gateway_hidden.vbs"
 
-echo [3/4] Wait for port...
+echo [4/5] Wait for port...
 set WAIT_MAX=30
 set WAIT_COUNT=0
 
@@ -55,7 +63,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [4/4] Health check...
+echo [5/5] Health check...
 set HEALTH_OK=0
 for /l %%i in (1,1,10) do (
     powershell -NoProfile -Command "try { $r = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:7864/api/status' -TimeoutSec 3; if ($r.StatusCode -eq 200) { exit 0 } else { exit 1 } } catch { exit 1 }" >nul 2>&1

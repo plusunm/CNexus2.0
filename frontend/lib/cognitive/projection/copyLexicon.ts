@@ -429,6 +429,37 @@ export const cognitiveCopy = {
     { en: "Discovery nodes", zh: "可发现节点" },
     { en: "DHT nodes", zh: "DHT nodes" },
   ),
+  shareDiscoveredClients: copy(
+    { en: "Discovered CNexus clients", zh: "发现的 CNexus 客户端" },
+    { en: "Discovered clients", zh: "发现的客户端" },
+    { en: "Discovered peers", zh: "Discovered peers" },
+  ),
+  shareDiscoveredClientsHint: copy(
+    {
+      en: "Registry + DHT + LAN scan — not every device on the internet.",
+      zh: "来自邻居表、DHT 与局域网扫描；不是全网所有设备。",
+    },
+    {
+      en: "Merged from registry, DHT, and optional LAN scan.",
+      zh: "合并邻居表、DHT 与局域网扫描结果。",
+    },
+    { en: "Local mesh discovery", zh: "Local mesh discovery" },
+  ),
+  shareScanDiscovered: copy(
+    { en: "Scan LAN & refresh", zh: "扫描局域网并刷新" },
+    { en: "Scan & refresh", zh: "扫描并刷新" },
+    { en: "Refresh discovery", zh: "Refresh discovery" },
+  ),
+  shareDiscoveredEmpty: copy(
+    { en: "No CNexus clients found — run scan on the same Wi‑Fi.", zh: "暂无发现的客户端 — 请在同一 Wi‑Fi 下扫描" },
+    { en: "No clients discovered yet", zh: "尚未发现客户端" },
+    { en: "No discovered peers", zh: "No discovered peers" },
+  ),
+  shareConnectThisDevice: copy(
+    { en: "Connect", zh: "连接" },
+    { en: "Connect", zh: "连接" },
+    { en: "Connect", zh: "Connect" },
+  ),
   shareMyDeviceId: copy(
     { en: "My device ID", zh: "我的设备 ID" },
     { en: "Local device ID", zh: "本机设备 ID" },
@@ -451,6 +482,20 @@ export const cognitiveCopy = {
     {
       en: "Missing identity pubkey",
       zh: "缺少设备公钥",
+    },
+  ),
+  shareDeviceIdInvalidKey: copy(
+    {
+      en: "Identity key file is invalid — delete data/identity.key and restart CNexus.",
+      zh: "身份密钥文件损坏 — 删除 data/identity.key 后重启 CNexus。",
+    },
+    {
+      en: "Invalid identity.key — delete and restart.",
+      zh: "identity.key 无效 — 删除后重启。",
+    },
+    {
+      en: "Invalid identity.key",
+      zh: "Invalid identity.key",
     },
   ),
   shareCopied: copy(
@@ -626,6 +671,60 @@ export const cognitiveCopy = {
     { en: "Memory", zh: "记忆块" },
     { en: "Memory block", zh: "记忆块" },
     { en: "Memory block", zh: "Memory block" },
+  ),
+  shareMemoryStatsTitle: copy(
+    { en: "Shared memory stats", zh: "共享记忆统计" },
+    { en: "Shared memory stats", zh: "共享记忆统计" },
+    { en: "Shared memory stats", zh: "Shared memory stats" },
+  ),
+  shareMemoryStatsHint: copy(
+    {
+      en: "Decentralized view from this node only: local blocks, catalog graphs synced via P2P, and distinct owners with published graphs.",
+      zh: "仅本节点视角的去中心化统计：本机记忆块、经 P2P 同步到的目录记忆图，以及目录中已发布记忆的不同 owner 数量。",
+    },
+    {
+      en: "Decentralized view from this node only: local blocks, catalog graphs synced via P2P, and distinct owners with published graphs.",
+      zh: "仅本节点视角的去中心化统计：本机记忆块、经 P2P 同步到的目录记忆图，以及目录中已发布记忆的不同 owner 数量。",
+    },
+    {
+      en: "Decentralized view from this node only.",
+      zh: "Decentralized view from this node only.",
+    },
+  ),
+  shareMemoryStatsLocalBlocks: copy(
+    { en: "Local blocks", zh: "本机记忆块" },
+    { en: "Local blocks", zh: "本机记忆块" },
+    { en: "Local blocks", zh: "Local blocks" },
+  ),
+  shareMemoryStatsVisibleGraphs: copy(
+    { en: "Visible memory graphs", zh: "可见记忆图" },
+    { en: "Visible memory graphs", zh: "可见记忆图" },
+    { en: "Visible memory graphs", zh: "Visible memory graphs" },
+  ),
+  shareMemoryStatsVisibleSharingClients: copy(
+    { en: "Visible sharing clients", zh: "可见分享客户端" },
+    { en: "Visible sharing clients", zh: "可见分享客户端" },
+    { en: "Visible sharing clients", zh: "Visible sharing clients" },
+  ),
+  shareMemoryStatsAutoShareOn: copy(
+    { en: "Auto-share on", zh: "已开启默认分享" },
+    { en: "Auto-share on", zh: "已开启默认分享" },
+    { en: "Auto-share on", zh: "Auto-share on" },
+  ),
+  shareMemoryStatsAutoShareOff: copy(
+    { en: "Auto-share off", zh: "默认分享已关闭" },
+    { en: "Auto-share off", zh: "默认分享已关闭" },
+    { en: "Auto-share off", zh: "Auto-share off" },
+  ),
+  shareMemoryStatsPublishNow: copy(
+    { en: "Share now", zh: "立即分享" },
+    { en: "Share now", zh: "立即分享" },
+    { en: "Share now", zh: "Share now" },
+  ),
+  shareMemoryStatsRefresh: copy(
+    { en: "Refresh", zh: "刷新" },
+    { en: "Refresh", zh: "刷新" },
+    { en: "Refresh", zh: "Refresh" },
   ),
   shareSearchPlaceholder: copy(
     { en: "Search title, filename, or ID…", zh: "搜索标题、文件名或 ID…" },
