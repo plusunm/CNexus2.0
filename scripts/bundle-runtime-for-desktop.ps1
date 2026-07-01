@@ -189,11 +189,19 @@ New-Item -ItemType Directory -Force -Path $templates | Out-Null
 $logTemplate = '{"event":"BUNDLE_TEMPLATE","level":"info","source":"bundle","message":"Runtime conflict monitor log"}'
 Set-Content -Path (Join-Path $templates "runtime-conflict-monitor.log") -Value $logTemplate -Encoding UTF8
 
-@{
-    edition = "personal"
-    apiBase = "http://127.0.0.1:7864"
-    wsBase = ""
-} | ConvertTo-Json -Compress | Set-Content -Path (Join-Path $AppRoot "cnexus-config.json") -Encoding UTF8
+$cfgSrc = Join-Path $RepoRoot "frontend/public/cnexus-config.json"
+$cfgDest = Join-Path $AppRoot "cnexus-config.json"
+if (Test-Path $cfgSrc) {
+    Copy-Item -Force $cfgSrc $cfgDest
+    Write-Host "-> Copied frontend/public/cnexus-config.json (bootstrap peers)"
+} else {
+    Write-Warning "frontend/public/cnexus-config.json missing — run write-cnexus-config.mjs first"
+    @{
+        edition = "personal"
+        apiBase = "http://127.0.0.1:7864"
+        wsBase = ""
+    } | ConvertTo-Json -Compress | Set-Content -Path $cfgDest -Encoding UTF8
+}
 
 Write-Host "-> Installing Python deps (pynacl) to site-packages..."
 $req = Join-Path $RepoRoot "requirements.txt"

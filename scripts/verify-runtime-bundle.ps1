@@ -6,6 +6,8 @@ $Bundle = Join-Path $Root "frontend/src-tauri/runtime-bundle"
 
 $required = @(
     "app/app_v2.py"
+    "app/src/core/hub_register.py"
+    "app/src/core/hub_directory.py"
     "app/src/gateway/__init__.py"
     "app/runtime/constitution/cognitive_constitution.md"
     "app/runtime/policy/reasoning_policy.md"

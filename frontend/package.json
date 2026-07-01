@@ -1,6 +1,6 @@
 {
   "name": "cnexus-product",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "private": true,
   "description": "CNexus 2.0 Personal Edition — Mind UI + app_v2 gateway",
   "repository": {
