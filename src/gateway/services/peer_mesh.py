@@ -36,6 +36,7 @@ class PeerMeshHooks:
     get_application_service: Callable[[], Any]
     memory_block_count: Callable[[], int]
     trace_count: Callable[[], int]
+    get_hub_directory: Callable[[], Any]
 
 
 class PeerMeshService:
@@ -227,6 +228,51 @@ class PeerMeshService:
         except Exception as exc:
             return {"ok": False, "error": str(exc)}, 503
 
+    def connectivity_register(self, data: Dict[str, Any], headers: Any) -> JsonResponse:
+        from api.middleware import HEADER_PUBKEY
+
+        payload = data if isinstance(data, dict) else {}
+        pubkey = ""
+        if hasattr(headers, "get"):
+            pubkey = str(headers.get(HEADER_PUBKEY) or headers.get(HEADER_PUBKEY.lower()) or "").strip().lower()
+        if not pubkey:
+            return {"ok": False, "error": "missing_peer_id"}, 400
+
+        hub_dir = self._hooks.get_hub_directory()
+        if hub_dir is None:
+            return {"ok": False, "error": "hub_directory_unavailable"}, 503
+
+        host = str(payload.get("host") or payload.get("peer_host") or "").strip()
+        endpoints = payload.get("endpoints") if isinstance(payload.get("endpoints"), list) else []
+        label = str(payload.get("label") or "client")
+        try:
+            row = hub_dir.register(pubkey, host, endpoints=endpoints, label=label)
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc)}, 400
+
+        self._hooks.audit_event(
+            "hub.register",
+            {"peer_pubkey": pubkey[:64], "host": row.get("host"), "endpoint_count": len(row.get("endpoints") or [])},
+        )
+        return {"ok": True, "pubkey": pubkey, "host": row.get("host"), "endpoints": row.get("endpoints") or []}, 200
+
+    def connectivity_directory(self, *, limit: int = 128) -> JsonResponse:
+        hub_dir = self._hooks.get_hub_directory()
+        if hub_dir is None:
+            return {"ok": False, "error": "hub_directory_unavailable"}, 503
+        rows = hub_dir.list_peers(limit=limit)
+        public = []
+        for row in rows:
+            public.append(
+                {
+                    "pubkey": row.get("pubkey"),
+                    "host": row.get("host"),
+                    "label": row.get("label") or "",
+                    "last_seen": row.get("last_seen"),
+                }
+            )
+        return {"ok": True, "peers": public, "count": len(public)}, 200
+
     def connectivity_resolve(self, pubkey: str) -> JsonResponse:
         from core.founder_peers import bootstrap_host_for_pubkey
         from core.peer_resolve import resolve_peer_host
@@ -250,6 +296,18 @@ class PeerMeshService:
             host = str(meta.get("host") or "").strip()
             if host:
                 return {"ok": True, "pubkey": pubkey, "host": host, "source": "registry"}, 200
+
+        hub_dir = self._hooks.get_hub_directory()
+        if hub_dir is not None:
+            row = hub_dir.resolve(pubkey)
+            if row and row.get("host"):
+                return {
+                    "ok": True,
+                    "pubkey": pubkey,
+                    "host": row.get("host"),
+                    "source": "directory",
+                    "endpoints": row.get("endpoints") or [],
+                }, 200
 
         dht = self._hooks.get_dht_service()
         host, source = resolve_peer_host(

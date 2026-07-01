@@ -37,6 +37,7 @@ STRICT_PEER_PATHS = frozenset({
     "/api/peer/negotiate",
     "/api/p2p/handshake",
     "/api/asset/receive",
+    "/api/connectivity/register",
 })
 
 HEADER_SIGNATURE = "X-CNexus-Signature"

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """CNexus 2.0 Pure Gateway — L0-spec HTTP server, zero legacy import conflicts."""
 
-import os, sys, json, math, time, traceback, cgi, shutil, subprocess, threading, ast, base64, re, tempfile
+import os, sys, json, math, time, traceback, shutil, subprocess, threading, ast, base64, re, tempfile
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 from urllib.parse import urlparse, parse_qs
@@ -1521,6 +1521,31 @@ def _peer_registry_path():
     return os.environ.get("CNEXUS_PEERS_FILE", os.path.join(_PERSIST_DIR, "peers.json"))
 
 
+def _hub_directory_path():
+    return os.environ.get("CNEXUS_HUB_DIRECTORY_FILE", os.path.join(_PERSIST_DIR, "hub_directory.json"))
+
+
+def _hub_mode_enabled():
+    return os.environ.get("CNEXUS_HUB_MODE", "").lower() in ("1", "true", "yes")
+
+
+_hub_directory = None
+
+
+def _get_hub_directory():
+    global _hub_directory
+    if _hub_directory is not None:
+        return _hub_directory
+    if not _hub_mode_enabled():
+        return None
+    try:
+        hub_mod = _load_core_module("hub_directory", "hub_directory.py")
+        _hub_directory = hub_mod.HubDirectory(_hub_directory_path())
+    except Exception:
+        _hub_directory = None
+    return _hub_directory
+
+
 def _catalog_store_path():
     return os.environ.get("CNEXUS_CATALOG_FILE", os.path.join(_PERSIST_DIR, "catalog.json"))
 
@@ -1859,6 +1884,23 @@ def _start_network_stack():
             return report
 
         fp_mod.schedule_bootstrap_connect(reg, _founder_connect)
+    except Exception:
+        pass
+    try:
+        from core.founder_peers import HUB_HOST
+
+        hub_mod = _load_core_module("hub_register", "hub_register.py")
+        im = _get_identity_manager()
+        mw = _get_auth_middleware()
+        if im and mw and HUB_HOST:
+            port = int(os.environ.get("CNEXUS_PORT", "7864"))
+            hub_mod.schedule_hub_registration(
+                HUB_HOST,
+                identity_manager=im,
+                build_signed_headers=mw.build_signed_headers,
+                connectivity_manager=cm,
+                local_port=port,
+            )
     except Exception:
         pass
 
@@ -4223,6 +4265,7 @@ def _init_asset_route_gateway():
                 get_application_service=_get_application_service,
                 memory_block_count=lambda: len(_engine_state["memory_store"].blocks),
                 trace_count=lambda: len(_engine_state.get("trace", [])),
+                get_hub_directory=_get_hub_directory,
             ),
         ),
         touch_activity=_state_manager.touch_consolidation_activity,
@@ -4250,7 +4293,7 @@ def _init_control_routes_gateway():
 def _init_static_routes_gateway():
     global _static_routes
     ui_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ui")
-    _static_routes = StaticRouteHandler(ui_dir)
+    _static_routes = StaticRouteHandler(ui_dir, hub_mode=_hub_mode_enabled())
 
 
 def _init_gateway_intent_gateway():
@@ -4488,6 +4531,10 @@ def main():
     print(f"   Genesis handshake: CNEXUS_GENESIS_ENABLE=1 — full AuditLog mirror on boot")
     print(f"   Resilience score: GET /api/status → resilience.score")
     print(f"   POST /api/connectivity/connect — DHT + ICE path selection to peer")
+    print(f"   POST /api/connectivity/register — signed hub directory (clients auto-report)")
+    print(f"   GET  /api/connectivity/resolve?pubkey= — device-ID → host lookup")
+    print(f"   Env  CNEXUS_HUB_MODE=1 — rendezvous-only hub (no public SPA)")
+    print(f"   Env  CNEXUS_HUB_REGISTER=1 — client auto-register with hub on boot")
     print(f"   POST /api/dht/rpc — Kademlia FIND_NODE / STORE")
     print(f"   POST /api/network/firewall/ban — evict malicious peer from routing")
     print(f"   Env  CNEXUS_BIND_HOST=0.0.0.0 CNEXUS_PUBLIC_URL= CNEXUS_DHT_BOOTSTRAP=")

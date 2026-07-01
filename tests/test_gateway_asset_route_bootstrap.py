@@ -118,6 +118,7 @@ class AssetRouteBootstrapTests(unittest.TestCase):
                 get_application_service=noop,
                 memory_block_count=lambda: 0,
                 trace_count=lambda: 0,
+                get_hub_directory=lambda: None,
             ),
         )
 

@@ -1,1 +1,1 @@
-{"edition":"personal","apiBase":"","wsBase":""}
+{"edition":"personal","apiBase":"","wsBase":"","bootstrapPeers":[{"pubkey":"4cbe1a21e9e202b128fa07395a6e06ab9ad7e2861bcdd7ce411e2f24c5b817ed","host":"http://114.55.62.198:7864","label":"hub"},{"pubkey":"d7ff9669ed23349e92490ac03cc58980fb6440382637f944077bb0b4e5e68075","host":"","label":"founder"}]}

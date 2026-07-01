@@ -60,6 +60,15 @@ class PeerRouteHandler:
             payload, status = self._mesh.connectivity_resolve(pubkey)
             return HttpRouteResponse.json(payload, status)
 
+        if path == "/api/connectivity/directory":
+            limit_raw = qs.get("limit", ["128"])[0] or "128"
+            try:
+                limit = int(limit_raw)
+            except ValueError:
+                limit = 128
+            payload, status = self._mesh.connectivity_directory(limit=limit)
+            return HttpRouteResponse.json(payload, status)
+
         if path == "/api/catalog/generation":
             payload, status = self._mesh.catalog_generation_get()
             return HttpRouteResponse.json(payload, status)
@@ -229,6 +238,10 @@ class PeerRouteHandler:
                 or ""
             ).strip()
             payload, status = self._mesh.connectivity_connect(peer_id, hint_host=hint_host)
+            return HttpRouteResponse.json(payload, status)
+
+        if path == "/api/connectivity/register":
+            payload, status = self._mesh.connectivity_register(http._get_post_data(), http.headers)
             return HttpRouteResponse.json(payload, status)
 
         if path == "/api/catalog/bloom":

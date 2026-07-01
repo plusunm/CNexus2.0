@@ -8,11 +8,11 @@ import time
 from typing import Any, Callable, Dict, List
 
 # Cloud rendezvous hub (华东1 杭州 ECS) — always-on, public reachability.
-_DEFAULT_HUB_PUBKEY = "4db22395a0bd6abd5aad862d4c70436e47e2dac2712644ec57347d344ea1ea8c"
+_DEFAULT_HUB_PUBKEY = "4cbe1a21e9e202b128fa07395a6e06ab9ad7e2861bcdd7ce411e2f24c5b817ed"
 _DEFAULT_HUB_HOST = "http://114.55.62.198:7864"
 
 # Maintainer local device — trusted by default; reachable via LAN/DHT when online.
-_DEFAULT_LOCAL_FOUNDER_PUBKEY = "da5886a7d0199609d431e0d23022503fd93eda68756f64d20ca454a9ade56abf"
+_DEFAULT_LOCAL_FOUNDER_PUBKEY = "d7ff9669ed23349e92490ac03cc58980fb6440382637f944077bb0b4e5e68075"
 
 HUB_PUBKEY = os.environ.get(
     "CNEXUS_HUB_PUBKEY",

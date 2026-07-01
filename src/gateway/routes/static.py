@@ -42,13 +42,34 @@ _MIME_BY_EXT = {
 class StaticRouteHandler:
     """Next.js static export + SPA fallback — always returns a response."""
 
-    def __init__(self, ui_dir: str):
+    def __init__(self, ui_dir: str, *, hub_mode: bool = False):
         self._ui_dir = ui_dir
+        self._hub_mode = hub_mode
 
     def handle_get(self, path: str) -> HttpRouteResponse:
-        clean_path = path.lstrip("/")
-        if not clean_path:
-            clean_path = "index.html"
+        clean_path = path.lstrip("/") or ""
+        if self._hub_mode and not clean_path.startswith(("_next/", "api/", "v1/")):
+            if clean_path in ("", "index.html"):
+                return HttpRouteResponse.json(
+                    {
+                        "ok": True,
+                        "service": "cnexus-hub",
+                        "mode": "rendezvous",
+                        "endpoints": [
+                            "GET /v1/health",
+                            "GET /api/connectivity/identity",
+                            "GET /api/connectivity/resolve?pubkey=",
+                            "GET /api/connectivity/directory",
+                            "POST /api/connectivity/register",
+                            "POST /api/p2p/handshake",
+                        ],
+                    },
+                    200,
+                )
+            if not any(clean_path.startswith(p) for p in ("api/", "v1/")):
+                return HttpRouteResponse.json({"ok": False, "error": "hub_mode_static_disabled"}, 404)
+
+        clean_path = clean_path or "index.html"
         local_path = os.path.join(self._ui_dir, clean_path)
 
         if os.path.isdir(local_path):
