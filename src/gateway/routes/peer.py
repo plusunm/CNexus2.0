@@ -51,6 +51,15 @@ class PeerRouteHandler:
             payload, status = self._mesh.connectivity_identity()
             return HttpRouteResponse.json(payload, status)
 
+        if path == "/api/connectivity/bootstrap-peers":
+            payload, status = self._mesh.connectivity_bootstrap_peers()
+            return HttpRouteResponse.json(payload, status)
+
+        if path == "/api/connectivity/resolve":
+            pubkey = qs.get("pubkey", [""])[0] or qs.get("peer_id", [""])[0] or ""
+            payload, status = self._mesh.connectivity_resolve(pubkey)
+            return HttpRouteResponse.json(payload, status)
+
         if path == "/api/catalog/generation":
             payload, status = self._mesh.catalog_generation_get()
             return HttpRouteResponse.json(payload, status)

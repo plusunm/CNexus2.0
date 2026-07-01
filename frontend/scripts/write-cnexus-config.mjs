@@ -27,6 +27,18 @@ const cfg = {
   edition,
   apiBase,
   wsBase,
+  bootstrapPeers: [
+    {
+      pubkey: "4db22395a0bd6abd5aad862d4c70436e47e2dac2712644ec57347d344ea1ea8c",
+      host: "http://114.55.62.198:7864",
+      label: "hub",
+    },
+    {
+      pubkey: "da5886a7d0199609d431e0d23022503fd93eda68756f64d20ca454a9ade56abf",
+      host: "",
+      label: "founder",
+    },
+  ],
 };
 if (apiToken) Object.assign(cfg, { apiToken });
 

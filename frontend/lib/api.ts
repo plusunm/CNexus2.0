@@ -1954,11 +1954,15 @@ export const cnexusProductApi = {
     }
     return data.dht || {};
   },
-  connectToPeer: async (peerId: string) => {
+  connectToPeer: async (peerId: string, hostHint?: string) => {
+    const host = String(hostHint || "").trim();
     const resp = await fetch(`${getApiBase()}/api/connectivity/connect`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ peer_id: peerId }),
+      body: JSON.stringify({
+        peer_id: peerId,
+        ...(host ? { host, peer_host: host } : {}),
+      }),
     });
     const data = (await resp.json().catch(() => ({}))) as Record<string, unknown>;
     if (!resp.ok || data.ok === false) {

@@ -1842,6 +1842,25 @@ def _start_network_stack():
         _seed_dht_from_lan(dht, port)
     if gossip and cm:
         gossip.attach_connectivity(cm, fw)
+    try:
+        fp_mod = _load_core_module("founder_peers", "founder_peers.py")
+        reg = _get_peer_registry()
+
+        def _founder_connect(pubkey: str, hint_host: str = ""):
+            report = cm.connect_to(pubkey, hint_host=hint_host) if cm else {}
+            if not report.get("ok"):
+                return report
+            url = str(report.get("url") or "")
+            handler = _get_p2p_handler()
+            if handler and url:
+                hs = _perform_outbound_handshake(url, pubkey, handler, _local_peer_host())
+                if hs.get("ok") and reg:
+                    reg.save_peer(pubkey, url, status="trusted")
+            return report
+
+        fp_mod.schedule_bootstrap_connect(reg, _founder_connect)
+    except Exception:
+        pass
 
 
 def _seed_dht_from_lan(dht, port: int):
@@ -1873,6 +1892,18 @@ def _get_peer_registry():
     try:
         reg_mod = _load_core_module("peer_registry", "peer_registry.py")
         _peer_registry = reg_mod.PeerRegistry(_peer_registry_path())
+        try:
+            fp_mod = _load_core_module("founder_peers", "founder_peers.py")
+            im = _get_identity_manager()
+            local_pk = im.public_key_hex() if im else ""
+            added = fp_mod.ensure_bootstrap_peers(_peer_registry, local_pk)
+            if added:
+                _append_runtime_log(
+                    f"默认信任节点已写入 · count={len(added)}",
+                    category="network",
+                )
+        except Exception:
+            pass
     except Exception:
         _peer_registry = None
     return _peer_registry

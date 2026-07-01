@@ -219,6 +219,51 @@ class PeerMeshService:
             return {"ok": False, "error": "identity_unavailable"}, 503
         return {"ok": True, "pubkey": pubkey, "service": "cnexus-2.0-personal"}, 200
 
+    def connectivity_bootstrap_peers(self) -> JsonResponse:
+        try:
+            from core.founder_peers import bootstrap_peers_public
+
+            return {"ok": True, "peers": bootstrap_peers_public()}, 200
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)}, 503
+
+    def connectivity_resolve(self, pubkey: str) -> JsonResponse:
+        from core.founder_peers import bootstrap_host_for_pubkey
+        from core.peer_resolve import resolve_peer_host
+
+        pubkey = str(pubkey or "").strip().lower()
+        if not pubkey:
+            return {"ok": False, "error": "missing_peer_id"}, 400
+
+        local = str(self._hooks.identity_pubkey() or "").strip().lower()
+        if local and pubkey == local:
+            host = str(self._hooks.local_peer_host() or "").strip()
+            return {"ok": True, "pubkey": pubkey, "host": host, "source": "self"}, 200
+
+        host = bootstrap_host_for_pubkey(pubkey)
+        if host:
+            return {"ok": True, "pubkey": pubkey, "host": host, "source": "bootstrap"}, 200
+
+        reg = self._hooks.get_peer_registry()
+        if reg:
+            meta = reg.get_peer(pubkey) or {}
+            host = str(meta.get("host") or "").strip()
+            if host:
+                return {"ok": True, "pubkey": pubkey, "host": host, "source": "registry"}, 200
+
+        dht = self._hooks.get_dht_service()
+        host, source = resolve_peer_host(
+            pubkey,
+            peer_registry=reg,
+            local_pubkey=local,
+            dht_service=dht,
+            remote_resolve=False,
+        )
+        if host:
+            return {"ok": True, "pubkey": pubkey, "host": host, "source": source}, 200
+
+        return {"ok": False, "error": "peer_not_found", "pubkey": pubkey}, 404
+
     def connectivity_connect(self, peer_id: str, *, hint_host: str = "") -> JsonResponse:
         cm = self._hooks.get_connectivity_manager()
         if cm is None:
@@ -226,7 +271,25 @@ class PeerMeshService:
         peer_id = str(peer_id or "").strip()
         if not peer_id:
             return {"ok": False, "error": "missing_peer_id"}, 400
+        hint_host = str(hint_host or "").strip()
+        reg = self._hooks.get_peer_registry()
+        resolve_source = ""
+        if not hint_host:
+            from core.peer_resolve import resolve_for_connect
+
+            local = str(self._hooks.identity_pubkey() or "").strip().lower()
+            hint_host, resolve_source = resolve_for_connect(
+                peer_id,
+                peer_registry=reg,
+                local_pubkey=local,
+                local_public_url=str(self._hooks.local_peer_host() or ""),
+                dht_service=self._hooks.get_dht_service(),
+            )
+        if hint_host and reg and not reg.get_peer(peer_id):
+            reg.save_peer(peer_id, hint_host, status="trusted")
         report = cm.connect_to(peer_id, hint_host=hint_host)
+        if resolve_source:
+            report["resolve_source"] = resolve_source
         if not report.get("ok"):
             code = 502 if report.get("error") else 400
             return report, code

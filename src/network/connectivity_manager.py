@@ -329,10 +329,14 @@ class ConnectivityManager:
                 )
         else:
             report["error"] = "no_viable_path"
-            if not dht_hit and discovery_source != "lan_scan":
-                report["hint"] = "peer_offline"
-            elif hint_host and not any(p.get("ok") for p in report["paths"]):
+            registry_host = ""
+            if self.peer_registry:
+                registry_host = str((self.peer_registry.get_peer(peer_id) or {}).get("host") or "").strip()
+            had_host = bool(hint_host or registry_host)
+            if had_host and not any(p.get("ok") for p in report["paths"]):
                 report["hint"] = "host_unreachable"
+            elif not dht_hit and discovery_source != "lan_scan":
+                report["hint"] = "peer_offline"
 
         self.last_connect_report = report
         return report
