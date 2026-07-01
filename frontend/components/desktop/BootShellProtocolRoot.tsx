@@ -30,6 +30,12 @@ import {
 } from "@/lib/tauriDesktop";
 import { bi, bootL } from "@/lib/spine/labels";
 import { BootShell } from "./BootShell";
+import { GatewayStatusBridge } from "@/lib/gateway/GatewayStatusBridge";
+import { GatewayDegradedBanner } from "@/components/gateway/GatewayDegradedBanner";
+import { PersonalHelpModal } from "@/components/help/PersonalHelpModal";
+import {
+  reportGatewayBootFault,
+} from "@/lib/gateway/GatewayStatusStore";
 
 type Props = { children: React.ReactNode };
 
@@ -112,6 +118,7 @@ export function BootShellProtocolRoot({ children }: Props) {
           }
           if (!ok) {
             setDegraded(true);
+            reportGatewayBootFault("probe_failed");
             // Keep runtime preference — kernel enters fallback until sidecar is ready.
             await grantUiRender().catch(() => undefined);
           } else {
@@ -126,6 +133,7 @@ export function BootShellProtocolRoot({ children }: Props) {
       } catch (err) {
         console.error("[cnexus] failed to show float window", err);
         setDegraded(true);
+        reportGatewayBootFault("unknown", err instanceof Error ? err.message : String(err));
         try {
           await revealTauriFloatWindow();
           if (stage === "dock") setStage("bar");
@@ -158,6 +166,7 @@ export function BootShellProtocolRoot({ children }: Props) {
     }
     if (await isRuntimeBootTimedOut()) {
       setDegraded(true);
+      reportGatewayBootFault("boot_timeout");
       setBootMode((mode) => (mode === "idle" ? "runtime" : mode));
     }
   }, []);
@@ -207,19 +216,26 @@ export function BootShellProtocolRoot({ children }: Props) {
       });
       unlistenTimeout = await listenRuntimeBootTimeout(() => {
         setDegraded(true);
+        reportGatewayBootFault("boot_timeout");
         setBootMode("runtime");
       });
       unlistenBundle = await listenRuntimeBundleMissing(() => {
         setDegraded(true);
-        setBootFailureDetail(bi(bootL.runtimeBundleMissing));
+        const detail = bi(bootL.runtimeBundleMissing);
+        setBootFailureDetail(detail);
+        reportGatewayBootFault("bundle_missing", detail);
       });
       unlistenInit = await listenRuntimeInitFailed((msg) => {
         setDegraded(true);
-        setBootFailureDetail(`${bi(bootL.runtimeInitFailed)}: ${msg}`);
+        const detail = `${bi(bootL.runtimeInitFailed)}: ${msg}`;
+        setBootFailureDetail(detail);
+        reportGatewayBootFault("init_failed", detail);
       });
       unlistenSpawn = await listenRuntimeSpawnFailed((msg) => {
         setDegraded(true);
-        setBootFailureDetail(`${bi(bootL.runtimeSpawnFailed)}: ${msg}`);
+        const detail = `${bi(bootL.runtimeSpawnFailed)}: ${msg}`;
+        setBootFailureDetail(detail);
+        reportGatewayBootFault("spawn_failed", detail);
       });
       if (!cancelled) {
         const failure = await getRuntimeBootFailure();
@@ -227,6 +243,10 @@ export function BootShellProtocolRoot({ children }: Props) {
         if (label) {
           setDegraded(true);
           setBootFailureDetail(label);
+          reportGatewayBootFault(
+            failure === "bundle_missing" ? "bundle_missing" : "init_failed",
+            label,
+          );
         }
         await syncBootModeFromRust();
       }
@@ -235,6 +255,7 @@ export function BootShellProtocolRoot({ children }: Props) {
     const fallback = window.setTimeout(() => {
       if (!shownRef.current) {
         setDegraded(true);
+        reportGatewayBootFault("boot_timeout");
         setBootMode((mode) => (mode === "idle" ? "runtime" : mode));
       }
     }, BOOT_FALLBACK_MS);
@@ -263,12 +284,20 @@ export function BootShellProtocolRoot({ children }: Props) {
       if (degraded && !bootFailureDetail) {
         void fetchRuntimeWarmHealth().then((warm) => {
           if (warm?.init_error) {
-            setBootFailureDetail(`${bi(bootL.runtimeInitFailed)}: ${warm.init_error}`);
+            const detail = `${bi(bootL.runtimeInitFailed)}: ${warm.init_error}`;
+            setBootFailureDetail(detail);
+            reportGatewayBootFault("init_failed", detail);
           }
         });
         void getRuntimeBootFailure().then((failure) => {
           const label = resolveBootFailureLabel(failure);
-          if (label) setBootFailureDetail(label);
+          if (label) {
+            setBootFailureDetail(label);
+            reportGatewayBootFault(
+              failure === "bundle_missing" ? "bundle_missing" : "init_failed",
+              label,
+            );
+          }
         });
       }
     }, POLL_MS);
@@ -332,8 +361,15 @@ export function BootShellProtocolRoot({ children }: Props) {
 
   return (
     <div className="relative w-full h-full min-h-0 overflow-hidden">
+      <GatewayStatusBridge />
       {!configLoading && (
         <div className="relative w-full h-full min-h-0 overflow-hidden">{children}</div>
+      )}
+      {floatActive && !configLoading && (
+        <>
+          <GatewayDegradedBanner variant="root" />
+          <PersonalHelpModal />
+        </>
       )}
       {showOverlay && (
         <div className="absolute inset-0 z-10">

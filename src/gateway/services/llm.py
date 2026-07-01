@@ -278,6 +278,47 @@ class ExternalLlmService:
             "model_id": model_row.get("id"),
         }
 
+    def invoke_messages(
+        self,
+        model_row: Dict[str, Any],
+        messages: List[Dict[str, str]],
+        mode_profile: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        profile = mode_profile or self._default_mode_profile()
+        url, body, is_ollama = self._compose_request(model_row, messages, profile, stream=False)
+        data = json.dumps(body).encode("utf-8")
+        req = urlrequest.Request(
+            url,
+            data=data,
+            headers=self.request_headers(model_row, is_ollama),
+            method="POST",
+        )
+        timeout = self.open_timeout(model_row, streaming=False)
+        try:
+            with urlrequest.urlopen(req, timeout=timeout) as resp:
+                payload = json.loads(resp.read().decode("utf-8", errors="replace"))
+        except Exception:
+            self._health.record_failure(model_row)
+            raise
+        self._health.record_success(model_row)
+
+        reply, tokens_in, tokens_out = self._parse_chat_response(payload, is_ollama)
+        provider = model_row.get("provider", "")
+        if not reply.strip():
+            raise ValueError("LLM 返回空回复")
+        user_text = next((m["content"] for m in reversed(messages) if m.get("role") == "user"), "")
+        if tokens_in <= 0:
+            tokens_in = self.estimate_tokens(user_text)
+        if tokens_out <= 0:
+            tokens_out = self.estimate_tokens(reply)
+        return {
+            "reply": reply.strip(),
+            "tokens_in": tokens_in,
+            "tokens_out": tokens_out,
+            "provider": provider,
+            "model_id": model_row.get("id"),
+        }
+
     def invoke(
         self,
         model_row: Dict[str, Any],

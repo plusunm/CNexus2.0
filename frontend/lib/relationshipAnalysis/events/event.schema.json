@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cnexus.local/schemas/event-stream/1.0",
+  "title": "EventStream",
+  "type": "object",
+  "required": ["version", "entities", "events"],
+  "properties": {
+    "version": { "const": "1.0" },
+    "entities": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "events": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/behaviorEvent" }
+    }
+  },
+  "$defs": {
+    "behaviorEvent": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["type", "actor", "text", "timestamp"],
+          "properties": {
+            "type": { "const": "message" },
+            "actor": { "type": "string" },
+            "target": { "type": "string" },
+            "text": { "type": "string" },
+            "timestamp": { "type": "number" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "actor", "target", "value", "timestamp"],
+          "properties": {
+            "type": { "const": "reply_delay" },
+            "actor": { "type": "string" },
+            "target": { "type": "string" },
+            "value": { "type": "number" },
+            "timestamp": { "type": "number" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "actor", "timestamp"],
+          "properties": {
+            "type": { "const": "initiative" },
+            "actor": { "type": "string" },
+            "timestamp": { "type": "number" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "duration", "timestamp"],
+          "properties": {
+            "type": { "const": "silence" },
+            "duration": { "type": "number" },
+            "timestamp": { "type": "number" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "actor", "target", "value", "timestamp"],
+          "properties": {
+            "type": { "const": "ignore" },
+            "actor": { "type": "string" },
+            "target": { "type": "string" },
+            "value": { "type": "number" },
+            "timestamp": { "type": "number" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "actor", "direction", "timestamp"],
+          "properties": {
+            "type": { "const": "emotion_shift" },
+            "actor": { "type": "string" },
+            "direction": { "enum": ["cold", "neutral", "warm"] },
+            "timestamp": { "type": "number" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "delta", "timestamp"],
+          "properties": {
+            "type": { "const": "intensity" },
+            "delta": { "type": "number" },
+            "timestamp": { "type": "number" }
+          }
+        }
+      ]
+    }
+  }
+}

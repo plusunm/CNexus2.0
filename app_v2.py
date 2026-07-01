@@ -753,6 +753,7 @@ _asset_gateway_service = None
 _auth_gate = None
 _status_routes = None
 _expert_routes = None
+_analyze_routes = None
 _asset_routes = None
 _peer_routes = None
 _control_routes = None
@@ -2522,6 +2523,13 @@ def _default_model_registry():
 _engine_state["model_registry"] = _default_model_registry()
 
 
+def _relationship_cards_file():
+    return os.environ.get(
+        "CNEXUS_RELATIONSHIP_CARDS_FILE",
+        os.path.join(_PERSIST_DIR, "relationship_cards.json"),
+    )
+
+
 def _persist_file_path():
     os.makedirs(_PERSIST_DIR, exist_ok=True)
     return _PERSIST_FILE
@@ -4255,6 +4263,42 @@ def _init_expert_gateway():
     _expert_routes = rt_mod.ExpertRouteHandler(service)
 
 
+    _expert_routes = rt_mod.ExpertRouteHandler(service)
+
+
+def _init_analyze_gateway():
+    global _analyze_routes
+    pkg = "cnexus_gateway"
+    cards_mod = _load_gateway_file(
+        os.path.join("services", "relationship_cards.py"),
+        f"{pkg}.services.relationship_cards",
+        f"{pkg}.services",
+    )
+    analyze_mod = _load_gateway_file(
+        os.path.join("services", "relationship_analyze.py"),
+        f"{pkg}.services.relationship_analyze",
+        f"{pkg}.services",
+    )
+    rt_mod = _load_gateway_file(
+        os.path.join("routes", "analyze.py"),
+        f"{pkg}.routes.analyze",
+        f"{pkg}.routes",
+    )
+    card_store = cards_mod.RelationshipCardStore(
+        cards_file=_relationship_cards_file,
+        schedule_persist=_schedule_persist,
+    )
+    service = analyze_mod.RelationshipAnalyzeService(
+        card_store=card_store,
+        converse_blocking=_converse_service.run_blocking,
+        status_snapshot=_status_snapshot_service.build,
+        resolve_model=lambda: _model_service.resolve_model_row_for_chat(None),
+        llm_service=_llm_service,
+        llm_enabled=True,
+    )
+    _analyze_routes = rt_mod.AnalyzeRouteHandler(service)
+
+
 def _init_v2_handler():
     global V2Handler
     V2Handler = create_v2_handler(
@@ -4277,8 +4321,10 @@ def _init_v2_handler():
                 _control_routes,
                 _models_routes,
                 expert=_expert_routes,
+                analyze=_analyze_routes,
             ),
             expert_routes=_expert_routes,
+            analyze_routes=_analyze_routes,
         )
     )
 
@@ -4304,6 +4350,7 @@ _init_asset_route_gateway()
 _init_control_routes_gateway()
 _init_static_routes_gateway()
 _init_expert_gateway()
+_init_analyze_gateway()
 _init_v2_handler()
 
 
@@ -4428,7 +4475,11 @@ def main():
     print(f"   Log replay: POST /api/replay/run — snapshot + incremental cognitive reconstruction")
     print(f"   Env  CNEXUS_SNAPSHOT_INTERVAL=1000 — cognitive snapshot cadence during replay")
     print(f"   Env  CNEXUS_REPLAY_ON_BOOT=1 — auto-replay when state lags audit")
-    print(f"   POST /api/memory/clear  — wipe memory + delete snapshot (keep_models optional)")
+    print(f'   POST /api/analyze  -- relationship decision analysis (canonical JSON)')
+    print(f'   POST /api/analyze/timeline — event stream + timeline + state → canonical')
+    print(f'   GET  /api/analyze/cards — list relationship model cards')
+    print(f'   POST /api/analyze/cards/delete — delete a card')
+    print(f'   POST /api/memory/clear  — wipe memory + delete snapshot (keep_models optional)')
     print(f"   JSON persist: {persist_path} ({'restored' if loaded else 'fresh start'})")
     if identity.get("loaded"):
         print(f"   Identity Ed25519: {identity.get('pubkey', '')[:16]}…")

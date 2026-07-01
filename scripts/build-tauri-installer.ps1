@@ -1,5 +1,6 @@
 param(
-    [switch]$TauriOnly
+    [switch]$TauriOnly,
+    [switch]$SkipGate
 )
 
 # CNexus Personal Edition — build NSIS installer (*.exe setup)
@@ -35,6 +36,11 @@ $env:CARGO_TARGET_DIR = Join-Path $TauriDir "target"
 
 Push-Location $Frontend
 try {
+    if (-not $SkipGate) {
+        Write-Host "Running prebuild:release gate..." -ForegroundColor Cyan
+        npm run prebuild:release
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    }
     Write-Host "Starting $(if ($TauriOnly) { 'npx tauri build' } else { 'npm run tauri:build' })..." -ForegroundColor Cyan
     if ($TauriOnly) {
         npx tauri build

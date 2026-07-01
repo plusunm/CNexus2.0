@@ -26,6 +26,7 @@ class V2Bindings:
     put_routes: Sequence[Any]
     post_routes: Sequence[PostRouteFn]
     expert_routes: Any = None
+    analyze_routes: Any = None
 
 
 def create_v2_handler(bindings: V2Bindings):
@@ -66,6 +67,11 @@ def create_v2_handler(bindings: V2Bindings):
                 expert_get = bindings.expert_routes.handle_get(path, p.query)
                 if expert_get is not None:
                     return apply_route_response(self, expert_get)
+
+            if bindings.analyze_routes is not None:
+                analyze_get = bindings.analyze_routes.handle_get(path, p.query)
+                if analyze_get is not None:
+                    return apply_route_response(self, analyze_get)
 
             models_get = bindings.models_routes.handle_http_get(path, p.query)
             if models_get is not None:

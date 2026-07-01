@@ -14,6 +14,9 @@ import { humanizeNetworkConnectError } from "./networkConnectErrors";
 import { isPersonalMode, isWebSocketEnabled, shouldSuppressRuntimeConnectError } from "./personalGuard";
 import { statusToMindOverview, converseToMindOverview } from "../src/adapters/cnexus_v2.adapter";
 import { buildExpertIngestFields, type IngestExpertFields } from "./uploadCorpusOptions";
+import type { RelationshipAnalysis, RelationshipAnalysisCard } from "./relationshipAnalysis/types/relationship";
+import { assertRelationshipAnalysis } from "./relationshipAnalysis/assertCanonical";
+import { coerceRelationshipCard } from "./relationshipAnalysis/cardStorage";
 
 type DocumentIngestOpts = {
   layer?: string;
@@ -1259,6 +1262,107 @@ export const cnexusProductApi = {
       return converseToMindOverview(raw as never);
     } catch {
       return request<MindOverview>("/v1/mind/overview");
+    }
+  },
+  /** Thinking page — POST /api/analyze returns canonical RelationshipAnalysis. */
+  analyzeRelationship: async (
+    text: string,
+    options?: { fast?: boolean; use_llm?: boolean; save_card?: boolean },
+  ): Promise<RelationshipAnalysis> => {
+    const fast = options?.fast ?? false;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), fast ? 15_000 : 120_000);
+    try {
+      const resp = await fetch(`${getApiBase()}/api/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          text,
+          fast,
+          use_llm: fast ? false : (options?.use_llm ?? true),
+          save_card: options?.save_card ?? true,
+        }),
+      });
+      const data = (await resp.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        analysis?: RelationshipAnalysis;
+      };
+      if (!resp.ok || data.ok === false || !data.analysis) {
+        throw new Error(String(data.error || `分析失败 (${resp.status})`));
+      }
+      assertRelationshipAnalysis(data.analysis);
+      return data.analysis;
+    } finally {
+      window.clearTimeout(timer);
+    }
+  },
+  /** Timeline pipeline — POST /api/analyze/timeline (Event → State → Canonical). */
+  analyzeRelationshipTimeline: async (payload: {
+    conversation: Array<{ timestamp: string | number; speaker: string; text: string }>;
+    entities?: [string, string];
+    sourceInput?: string;
+    save_card?: boolean;
+    use_llm?: boolean;
+  }) => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 90_000);
+    try {
+      const resp = await fetch(`${getApiBase()}/api/analyze/timeline`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          save_card: false,
+          use_llm: true,
+          ...payload,
+        }),
+      });
+      const data = (await resp.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        analysis?: RelationshipAnalysis;
+        eventStream?: unknown;
+        timeline?: unknown;
+        relationshipState?: string;
+      };
+      if (!resp.ok || data.ok === false || !data.analysis) {
+        throw new Error(String(data.error || `时间轴分析失败 (${resp.status})`));
+      }
+      assertRelationshipAnalysis(data.analysis);
+      return data;
+    } finally {
+      window.clearTimeout(timer);
+    }
+  },
+  listRelationshipCardsApi: async (): Promise<RelationshipAnalysisCard[]> => {
+    const resp = await fetch(`${getApiBase()}/api/analyze/cards`, { cache: "no-store" });
+    const data = (await resp.json().catch(() => ({}))) as {
+      ok?: boolean;
+      cards?: RelationshipAnalysisCard[];
+      error?: string;
+    };
+    if (!resp.ok || data.ok === false) {
+      throw new Error(String(data.error || `加载卡片失败 (${resp.status})`));
+    }
+    const cards = data.cards ?? [];
+    const coerced: RelationshipAnalysisCard[] = [];
+    for (const row of cards) {
+      const parsed = coerceRelationshipCard(row);
+      if (parsed) coerced.push(parsed);
+    }
+    return coerced;
+  },
+  deleteRelationshipCardApi: async (id: string): Promise<void> => {
+    const resp = await fetch(`${getApiBase()}/api/analyze/cards/delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    const data = (await resp.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+    if (!resp.ok || data.ok === false) {
+      throw new Error(String(data.error || `删除失败 (${resp.status})`));
     }
   },
   v2ClearMemory: async (keepModels = true) => {

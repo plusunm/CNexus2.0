@@ -18,6 +18,7 @@ import {
 } from "@/lib/floatWindowSpec";
 import { FloatingHeaderBar } from "./FloatingHeaderBar";
 import { FloatRuntimeMonitorProvider } from "./FloatRuntimeMonitorContext";
+import { GatewayDegradedBanner } from "@/components/gateway/GatewayDegradedBanner";
 import { FloatingQuickButtons } from "./FloatingQuickButtons";
 import { FloatingExpandPanel } from "./FloatingExpandPanel";
 import { FloatingAppMenu, type FloatingMenuItem } from "./FloatingAppMenu";
@@ -542,6 +543,7 @@ export function FloatingMindBar({ desktop = false }: { desktop?: boolean }) {
       }}
       data-stage={stage}
     >
+      {!desktop && <GatewayDegradedBanner variant="compact" />}
       <FloatingHeaderBar
         stage={stage}
         pinned={pinned}

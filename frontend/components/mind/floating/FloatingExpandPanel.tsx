@@ -9,6 +9,7 @@ import { FloatingCognitiveHints } from "./FloatingCognitiveHints";
 import { ExperienceTierSwitch } from "@/lib/cognitive";
 import { isFloatPersonalEdition } from "@/lib/floatPersonal";
 import { FloatExperienceTierBar } from "./FloatExperienceTierBar";
+import { FloatingRelationshipShortcuts } from "./FloatingRelationshipShortcuts";
 import { useMindTheme } from "../MindUiProvider";
 import type { FloatPanel } from "@/lib/floatingBarStorage";
 
@@ -29,6 +30,7 @@ export function FloatingExpandPanel({ panel }: Props) {
         style={{ borderColor: t.border }}
       >
         {personal ? <FloatExperienceTierBar /> : <ExperienceTierSwitch compact />}
+        <FloatingRelationshipShortcuts />
       </div>
       {showCognitiveHints && <FloatingCognitiveHints />}
       <div

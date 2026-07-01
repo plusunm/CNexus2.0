@@ -8,6 +8,9 @@ import { useMindTheme } from "../MindUiProvider";
 import { SecondBrainSidebar } from "./SecondBrainSidebar";
 import { secondBrainNavMeta, secondBrainTabMaxWidth } from "./secondBrainNav";
 import { ChatTab } from "./ChatTab";
+import { ThinkingTab } from "./ThinkingTab";
+import { TimelineTab } from "./TimelineTab";
+import { CardsTab } from "./CardsTab";
 import { MemoryTab } from "./MemoryTab";
 import { UploadTab } from "./UploadTab";
 import { OrganizeTab } from "./OrganizeTab";
@@ -119,6 +122,21 @@ export function SecondBrainLayout() {
           )}
         >
           {secondBrainTab === "chat" && <ChatTab />}
+          {secondBrainTab === "thinking" && (
+            <TabFrame tab="thinking">
+              <ThinkingTab />
+            </TabFrame>
+          )}
+          {secondBrainTab === "timeline" && (
+            <TabFrame tab="timeline">
+              <TimelineTab />
+            </TabFrame>
+          )}
+          {secondBrainTab === "cards" && (
+            <TabFrame tab="cards">
+              <CardsTab />
+            </TabFrame>
+          )}
           {secondBrainTab === "memory" && (
             <TabFrame tab="memory">
               <MemoryTab onOpenLab={openLab} />

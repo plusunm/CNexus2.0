@@ -17,6 +17,10 @@ import { SecurityBootstrapGate } from "@/components/desktop/SecurityBootstrapGat
 import { isTauriDesktop } from "@/lib/tauriDesktop";
 import { useUpdateCheck } from "@/lib/useUpdateCheck";
 import { UpdateAvailableBanner } from "./UpdateAvailableBanner";
+import { GatewayStatusBridge } from "@/lib/gateway/GatewayStatusBridge";
+import { GatewayDegradedBanner } from "@/components/gateway/GatewayDegradedBanner";
+import { PersonalHelpModal } from "@/components/help/PersonalHelpModal";
+import { isPersonalMode } from "@/lib/personalGuard";
 
 export type MindShellProps = {
   layout?: ShellLayout;
@@ -72,11 +76,17 @@ export function MindShell({
     if (desktop) {
       return (
         <div className="w-full h-full min-h-0 overflow-hidden bg-transparent flex flex-col">
+          {isPersonalMode() && <PersonalHelpModal />}
           <ConnectionModeGate compact />
         </div>
       );
     }
-    return <ConnectionModeGate compact={false} />;
+    return (
+      <>
+        {isPersonalMode() && <PersonalHelpModal wide />}
+        <ConnectionModeGate compact={false} />
+      </>
+    );
   }
 
   const layout = desktop ? "float" : uiMode;
@@ -102,6 +112,7 @@ export function MindShell({
         data-ui-mode="float"
         data-connection-mode={preference}
       >
+        {isPersonalMode() && !desktop && <GatewayStatusBridge />}
         {updateCheck.showBanner && updateCheck.status ? (
           <UpdateAvailableBanner
             status={updateCheck.status}
@@ -120,7 +131,17 @@ export function MindShell({
       </div>
     );
 
-    return desktop ? <SecurityBootstrapGate>{floatBody}</SecurityBootstrapGate> : floatBody;
+    return desktop ? (
+      <SecurityBootstrapGate>
+        {isPersonalMode() && <PersonalHelpModal />}
+        {floatBody}
+      </SecurityBootstrapGate>
+    ) : (
+      <>
+        {isPersonalMode() && <PersonalHelpModal />}
+        {floatBody}
+      </>
+    );
   }
 
   return (
@@ -134,6 +155,9 @@ export function MindShell({
       data-ui-mode={layout}
       data-connection-mode={preference}
     >
+      {isPersonalMode() && <GatewayStatusBridge />}
+      {isPersonalMode() && <GatewayDegradedBanner variant="root" />}
+      {isPersonalMode() && <PersonalHelpModal wide />}
       {updateCheck.showBanner && updateCheck.status ? (
         <UpdateAvailableBanner status={updateCheck.status} onDismiss={updateCheck.dismiss} />
       ) : null}

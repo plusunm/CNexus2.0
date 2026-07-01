@@ -1,10 +1,14 @@
 "use client";
 
-import { ExternalLink } from "lucide-react";
+import { BookOpen, ExternalLink, FolderOpen } from "lucide-react";
 import { CNEXUS_ABOUT } from "@/lib/cnexusAbout";
 import { floatTy } from "@/lib/floatTypography";
 import { useMindTheme } from "../MindUiProvider";
 import { FloatingMiniDialog } from "./FloatingMiniDialog";
+import { openPersonalHelpGuide } from "@/components/help/PersonalHelpModal";
+import { openPersonalDataDir } from "@/lib/personalHelp";
+import { bi, gatewayL } from "@/lib/spine/labels";
+import { isPersonalMode } from "@/lib/personalGuard";
 
 type Props = {
   onClose: () => void;
@@ -12,6 +16,7 @@ type Props = {
 
 export function FloatingAboutDialog({ onClose }: Props) {
   const t = useMindTheme();
+  const personal = isPersonalMode();
 
   return (
     <FloatingMiniDialog title={`关于 ${CNEXUS_ABOUT.productName}`} onClose={onClose} width={300}>
@@ -26,6 +31,45 @@ export function FloatingAboutDialog({ onClose }: Props) {
             {CNEXUS_ABOUT.version}
           </span>
         </div>
+
+        {personal && (
+          <div className="space-y-2">
+            <span className="block" style={{ color: t.textMuted }}>
+              帮助与诊断
+            </span>
+            <div className="grid grid-cols-1 gap-2">
+              <button
+                type="button"
+                className={`flex items-center gap-2 p-2 rounded-lg transition hover:brightness-110 text-left w-full ${floatTy.btn}`}
+                style={{
+                  backgroundColor: "rgba(255,255,255,0.04)",
+                  border: `1px solid ${t.border}`,
+                  color: t.blue,
+                }}
+                onClick={() => {
+                  openPersonalHelpGuide();
+                  onClose();
+                }}
+              >
+                <BookOpen className="w-3.5 h-3.5 shrink-0" />
+                {bi(gatewayL.openHelpGuide)}
+              </button>
+              <button
+                type="button"
+                className={`flex items-center gap-2 p-2 rounded-lg transition hover:brightness-110 text-left w-full ${floatTy.btn}`}
+                style={{
+                  backgroundColor: "rgba(255,255,255,0.04)",
+                  border: `1px solid ${t.border}`,
+                  color: t.text,
+                }}
+                onClick={() => void openPersonalDataDir()}
+              >
+                <FolderOpen className="w-3.5 h-3.5 shrink-0" />
+                {bi(gatewayL.openLogsFolder)}
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-1.5">
           <span className="block" style={{ color: t.textMuted }}>

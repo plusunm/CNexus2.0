@@ -342,6 +342,21 @@ export const cognitiveCopy = {
     { en: "Chat", zh: "对话" },
     { en: "Chat", zh: "对话" },
   ),
+  tabThinking: copy(
+    { en: "Thinking", zh: "思考" },
+    { en: "Thinking", zh: "思考" },
+    { en: "Thinking", zh: "Thinking" },
+  ),
+  tabTimeline: copy(
+    { en: "Timeline", zh: "关系时间轴" },
+    { en: "Timeline", zh: "关系时间轴" },
+    { en: "Timeline", zh: "Timeline" },
+  ),
+  tabCards: copy(
+    { en: "Model cards", zh: "模型库" },
+    { en: "Model cards", zh: "模型库" },
+    { en: "Model cards", zh: "Model cards" },
+  ),
   tabMemory: copy(
     { en: "Memories", zh: "记忆" },
     { en: "Memories", zh: "记忆" },

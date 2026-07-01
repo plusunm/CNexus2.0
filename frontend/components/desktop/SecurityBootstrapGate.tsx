@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { KeyRound, ShieldAlert } from "lucide-react";
-import { listen } from "@tauri-apps/api/event";
 import {
   runSecurityBootstrapPreflight,
   type SecurityBootstrapResult,
@@ -36,6 +35,7 @@ export function SecurityBootstrapGate({ children }: Props) {
 
     const unsubs: Array<() => void> = [];
     void (async () => {
+      const { listen } = await import("@tauri-apps/api/event");
       unsubs.push(
         await listen<SecurityBootstrapResult>("cnexus:security-bootstrap-failed", (event) => {
           apply(event.payload);

@@ -172,6 +172,38 @@ fn cnexus_data_dir() -> std::path::PathBuf {
 }
 
 #[tauri::command]
+fn open_personal_data_dir() -> Result<(), String> {
+    let dir = cnexus_data_dir().join("data");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&dir)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&dir)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&dir)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    #[allow(unreachable_code)]
+    Err("unsupported platform".to_string())
+}
+
+#[tauri::command]
 async fn show_float_window(app: tauri::AppHandle) -> Result<(), String> {
     boot_sequence::show_float_window(app).await
 }
@@ -314,6 +346,7 @@ pub fn run() {
             emit_open_settings,
             save_enterprise_license,
             restart_runtime_sidecar,
+            open_personal_data_dir,
             check_runtime_environment,
             show_float_window,
             security_bootstrap::security_bootstrap_scan_app_dir,

@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cnexus.local/schemas/relationship-analysis/1.0",
+  "title": "RelationshipAnalysis",
+  "description": "CNexus canonical UI contract for relationship decision analysis",
+  "type": "object",
+  "required": ["meta", "state", "signals", "uncertainty", "decision", "actions"],
+  "additionalProperties": false,
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["id", "sourceInput", "createdAt", "schemaVersion"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "sourceInput": { "type": "string", "minLength": 1 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "schemaVersion": { "const": "1.0" }
+      }
+    },
+    "state": {
+      "type": "object",
+      "required": [
+        "emotionConnection",
+        "initiativeLevel",
+        "interactionFrequency",
+        "relationshipStage"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "emotionConnection": { "enum": ["high", "medium", "low"] },
+        "initiativeLevel": { "enum": ["high", "medium", "low"] },
+        "interactionFrequency": { "enum": ["high", "medium", "low"] },
+        "relationshipStage": { "enum": ["stable", "cold", "uncertain", "broken"] }
+      }
+    },
+    "signals": {
+      "type": "object",
+      "required": ["positive", "negative"],
+      "additionalProperties": false,
+      "properties": {
+        "positive": { "type": "array", "items": { "type": "string" } },
+        "negative": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "uncertainty": {
+      "type": "object",
+      "required": ["missingInfo", "risk"],
+      "additionalProperties": false,
+      "properties": {
+        "missingInfo": { "type": "array", "items": { "type": "string" } },
+        "risk": { "type": "string" }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "required": ["options", "recommended", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "options": {
+          "type": "object",
+          "required": ["A", "B", "C", "D"],
+          "additionalProperties": false,
+          "properties": {
+            "A": { "type": "string", "minLength": 1 },
+            "B": { "type": "string", "minLength": 1 },
+            "C": { "type": "string", "minLength": 1 },
+            "D": { "type": "string", "minLength": 1 }
+          }
+        },
+        "recommended": { "enum": ["A", "B", "C", "D"] },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "card": {
+      "type": "object",
+      "required": ["title", "summary"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

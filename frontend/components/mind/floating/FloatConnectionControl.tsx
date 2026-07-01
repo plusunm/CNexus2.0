@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Cpu, Check, Loader2, Play, Plug } from "lucide-react";
+import { Cpu, Check, Loader2, Play, Plug, RotateCcw } from "lucide-react";
 import { useMindConnection } from "../MindConnectionProvider";
 import { useMindTheme } from "../MindUiProvider";
 import { useOllamaStatus } from "@/hooks/useOllamaStatus";
 import { getCognitiveSourceMetaForRuntime } from "@/lib/cognitiveSource";
 import { resolveRuntimeConnectionDisplay } from "@/lib/runtimeConnection";
-import { isTauriDesktop } from "@/lib/tauriDesktop";
+import { isTauriDesktop, restartRuntimeGateway } from "@/lib/tauriDesktop";
 import { isReleaseBuild } from "@/lib/releaseBuild";
 import { isPersonalMode } from "@/lib/personalGuard";
 import { gatewayEndpointLabel } from "@/lib/floatPersonal";
@@ -139,7 +139,9 @@ export function FloatConnectionControl({ open, onOpenChange, compact = false }: 
       } else {
         setRuntimeHint(
           personal
-            ? "未连接本地网关 — 请运行 start_cnexus.bat"
+            ? isTauriDesktop()
+              ? "未连接本地网关 — 可尝试「重启本地网关」"
+              : "未连接本地网关 — 请运行 start_cnexus.bat"
             : isTauriDesktop()
               ? bi(connectionL.runtimeNotReadyDev)
               : bi(connectionL.runtimeNotReadyLocal),
@@ -153,6 +155,30 @@ export function FloatConnectionControl({ open, onOpenChange, compact = false }: 
       if (!keepBusy) {
         setRuntimeBusy(false);
       }
+    }
+  }, [finishConnectSuccess, monitor, runtimeStatus.label, selectPreference]);
+
+  const restartGateway = useCallback(async () => {
+    if (!isTauriDesktop()) return;
+    setRuntimeBusy(true);
+    setConnectSuccess(false);
+    setRuntimeHint("正在重启本地网关…");
+    selectPreference("runtime");
+    try {
+      await restartRuntimeGateway();
+      await new Promise((resolve) => window.setTimeout(resolve, 2500));
+      const result = await monitor.runProbe();
+      if (result === "ready") {
+        finishConnectSuccess();
+      } else if (result === "warming") {
+        setRuntimeHint(runtimeStatus.label);
+      } else {
+        setRuntimeHint("网关重启后仍未就绪，请稍后再试或查看日志。");
+      }
+    } catch (err) {
+      setRuntimeHint(err instanceof Error ? err.message : "重启网关失败");
+    } finally {
+      setRuntimeBusy(false);
     }
   }, [finishConnectSuccess, monitor, runtimeStatus.label, selectPreference]);
 
@@ -281,7 +307,7 @@ export function FloatConnectionControl({ open, onOpenChange, compact = false }: 
                     {runtimeStatusLabel}
                   </p>
                   <p className={`${floatTy.caption} mt-0.5`} style={{ color: t.textMuted }}>
-                    {personal ? gatewayEndpointLabel() : "REST 127.0.0.1:8000 · WS /ws/state"}
+                    {personal ? gatewayEndpointLabel() : "REST 127.0.0.1:7864 · WS /ws/state"}
                   </p>
                   {!personal && (monitor.isWarming || monitor.isChecking) && runtimeBootPhase && (
                     <div className="mt-2">
@@ -318,6 +344,22 @@ export function FloatConnectionControl({ open, onOpenChange, compact = false }: 
                       : bi(connectionL.connectRuntime)}
               </button>
               ) : null}
+              {personal && isTauriDesktop() && (
+                <button
+                  type="button"
+                  className={`w-full inline-flex items-center justify-center gap-1.5 rounded-md py-2 ${floatTy.btn} disabled:opacity-60`}
+                  style={{
+                    color: t.text,
+                    backgroundColor: `${t.orange}18`,
+                    border: `1px solid ${t.orange}55`,
+                  }}
+                  disabled={runtimeBusy}
+                  onClick={() => void restartGateway()}
+                >
+                  {runtimeBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                  重启本地网关
+                </button>
+              )}
             </section>
 
             <section
@@ -379,7 +421,9 @@ export function FloatConnectionControl({ open, onOpenChange, compact = false }: 
 
             {personal && runtimeConnected && (
               <p className={`${floatTy.caption} leading-relaxed`} style={{ color: t.textMuted }}>
-                网关由 start_cnexus.bat 或桌面启动器在后台运行。
+                {isTauriDesktop()
+                  ? "网关由桌面应用内置 sidecar 在后台运行。"
+                  : "网关由 start_cnexus.bat 或桌面启动器在后台运行。"}
               </p>
             )}
 

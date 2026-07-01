@@ -862,6 +862,48 @@ export const bootL = {
   initProduct: { en: "Starting CNexus…", zh: "正在启动 CNexus…" } satisfies BilingualLabel,
 } satisfies Record<string, BilingualLabel>;
 
+export const gatewayL = {
+  gatewayOfflineTitle: { en: "Local gateway offline", zh: "本地网关未连接" } satisfies BilingualLabel,
+  gatewayOfflineBodyTauri: {
+    en: "Some features run in offline rule mode. Restart the embedded gateway or recheck connection.",
+    zh: "部分功能已切换为离线规则模式。可尝试重启本地网关或重新检测。",
+  } satisfies BilingualLabel,
+  gatewayOfflineBodyBrowser: {
+    en: "Start start_cnexus.bat or the desktop app, then recheck.",
+    zh: "请运行 start_cnexus.bat 或桌面版启动器，然后重新检测。",
+  } satisfies BilingualLabel,
+  gatewayWarmingTitle: { en: "Gateway starting", zh: "网关正在启动" } satisfies BilingualLabel,
+  gatewayWarmingBody: {
+    en: "Runtime is warming up — full features unlock when ready.",
+    zh: "运行时正在预热，就绪后将恢复完整能力。",
+  } satisfies BilingualLabel,
+  gatewayDegradedTitle: { en: "Degraded mode", zh: "运行降级模式" } satisfies BilingualLabel,
+  gatewayDegradedBody: {
+    en: "Gateway started with reduced capability. Restart or recheck to recover.",
+    zh: "网关以降级状态运行，可重启或重新检测以恢复。",
+  } satisfies BilingualLabel,
+  bootBundleMissingTitle: {
+    en: "Runtime bundle missing",
+    zh: "未找到运行时包",
+  } satisfies BilingualLabel,
+  bootInitFailedTitle: { en: "Runtime init failed", zh: "运行时初始化失败" } satisfies BilingualLabel,
+  bootSpawnFailedTitle: {
+    en: "Failed to start runtime",
+    zh: "无法启动运行时进程",
+  } satisfies BilingualLabel,
+  bootTimeoutTitle: { en: "Runtime boot timeout", zh: "运行时启动超时" } satisfies BilingualLabel,
+  analysisDegradedTitle: {
+    en: "Analysis degraded",
+    zh: "分析已降级",
+  } satisfies BilingualLabel,
+  restartGateway: { en: "Restart gateway", zh: "重启网关" } satisfies BilingualLabel,
+  recheckGateway: { en: "Recheck", zh: "重新检测" } satisfies BilingualLabel,
+  dismissBanner: { en: "Later", zh: "稍后" } satisfies BilingualLabel,
+  dismissBannerAck: { en: "Got it", zh: "我知道了" } satisfies BilingualLabel,
+  openHelpGuide: { en: "Troubleshooting guide", zh: "查看自救指南" } satisfies BilingualLabel,
+  openLogsFolder: { en: "Open log folder", zh: "打开日志目录" } satisfies BilingualLabel,
+} satisfies Record<string, BilingualLabel>;
+
 export const floatL = {
   factorGraph: { en: "Factor network", zh: "因子词网络" } satisfies BilingualLabel,
   factorGraphHint: {

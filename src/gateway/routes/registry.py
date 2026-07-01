@@ -6,6 +6,7 @@ from typing import Any, Optional, Sequence, Tuple
 
 from ..http.post_dispatch import PostRouteFn
 from ..http.responses import HttpRouteResponse
+from .analyze import AnalyzeRouteHandler
 from .asset import AssetRouteHandler
 from .converse import ConverseRouteHandler
 from .control import ControlRouteHandler
@@ -23,6 +24,7 @@ def build_post_routes(
     control: ControlRouteHandler,
     models: ModelsRouteHandler,
     expert: Optional[ExpertRouteHandler] = None,
+    analyze: Optional[AnalyzeRouteHandler] = None,
 ) -> Tuple[PostRouteFn, ...]:
     """Ordered POST handlers — first match wins (see post_dispatch.py)."""
 
@@ -49,7 +51,14 @@ def build_post_routes(
             return None
         return expert.handle_post(path, handler)
 
+    def _analyze(handler: Any, path: str, query: Optional[str]) -> Optional[HttpRouteResponse]:
+        if analyze is None:
+            return None
+        return analyze.handle_post(path, handler)
+
     routes: Tuple[PostRouteFn, ...] = (_converse, _asset, _peer, _ingest, _control, _models)
+    if analyze is not None:
+        routes = routes + (_analyze,)
     if expert is not None:
         routes = routes + (_expert,)
     return routes

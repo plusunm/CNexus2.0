@@ -1,6 +1,7 @@
 /** CNexus 2.0 personal float — labels and helpers (no enterprise Runtime/WS). */
 
 import { isPersonalMode } from "./personalGuard";
+import { getPersonalGatewayBase, isTauriWebviewHost } from "./cnexusConfig";
 
 export const CNEXUS2_GATEWAY_PORT = "7864";
 
@@ -13,14 +14,17 @@ export function gatewayEndpointLabel(): string {
 }
 
 export function personalMainUiUrl(): string {
+  if (isTauriWebviewHost()) {
+    return `${getPersonalGatewayBase()}/`;
+  }
   if (typeof window !== "undefined" && window.location.origin.startsWith("http")) {
     const port = window.location.port;
     if (port === "3000" || port === "1420") {
-      return `http://127.0.0.1:${CNEXUS2_GATEWAY_PORT}/`;
+      return `${getPersonalGatewayBase()}/`;
     }
     return `${window.location.origin}/`;
   }
-  return `http://127.0.0.1:${CNEXUS2_GATEWAY_PORT}/`;
+  return `${getPersonalGatewayBase()}/`;
 }
 
 /** Full observability / cognitive lab dashboard route (Tauri + static export). */

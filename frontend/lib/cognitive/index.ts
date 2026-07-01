@@ -11,4 +11,10 @@ export { PERSONA_DEFAULT_DIALECT, PERSONA_LABELS, LAB_ONLY_VIEWS } from "./exper
 export { ExperienceProvider, useExperience, useExperienceOptional } from "./experience/ExperienceProvider";
 export { ExperienceTierSwitch } from "./experience/ExperienceTierSwitch";
 export { buildLabShellHref, buildEmergenceLabLink, buildConflictLabLink } from "./experience/deepLink";
-export type { LabDeepLink } from "./experience/deepLink";
+export type { LabDeepLink, SecondBrainDeepLink } from "./experience/deepLink";
+export {
+  buildSecondBrainShellHref,
+  buildSecondBrainDashboardRoute,
+  resolveSecondBrainOpenUrl,
+  parseSecondBrainTabFromSearch,
+} from "./experience/deepLink";

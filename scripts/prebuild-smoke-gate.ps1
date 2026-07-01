@@ -113,6 +113,26 @@ try {
     }
 
     try {
+        $analyzeBody = @{
+            text = "他最近不理我"
+            fast = $true
+            use_llm = $false
+            save_card = $false
+        } | ConvertTo-Json -Compress
+        $analyze = Invoke-RestMethod -Uri "http://127.0.0.1:7864/api/analyze" -Method Post `
+            -ContentType "application/json; charset=utf-8" -Body $analyzeBody -TimeoutSec 15
+        if ($analyze.ok -ne $true -or -not $analyze.analysis) {
+            Fail "/api/analyze missing ok/analysis"
+        } elseif (-not $analyze.analysis.state) {
+            Fail "/api/analyze analysis missing state"
+        } else {
+            Pass "/api/analyze fast ok"
+        }
+    } catch {
+        Fail "/api/analyze failed: $($_.Exception.Message)"
+    }
+
+    try {
         $boot = Invoke-RestMethod -Uri "http://127.0.0.1:7864/v1/runtime/boot" -TimeoutSec 3
         if ($boot.boot_id) { Pass "/v1/runtime/boot boot_id=$($boot.boot_id)" } else { Warn "/v1/runtime/boot missing boot_id" }
     } catch {

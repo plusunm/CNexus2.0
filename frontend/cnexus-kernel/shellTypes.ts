@@ -10,7 +10,7 @@ export function parseShellLayout(value: string | null | undefined): ShellLayout 
 }
 
 export function parseShellPanel(value: string | null | undefined): ShellPanel | null {
-  if (value === "chat" || value === "memory" || value === "upload") return value;
+  if (value === "chat" || value === "memory" || value === "upload" || value === "memchat") return value;
   return null;
 }
 

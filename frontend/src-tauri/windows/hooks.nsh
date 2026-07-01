@@ -1,12 +1,13 @@
 ; CNexus — stop UI + Runtime + embedded Python before uninstall/update.
+; Aligned with scripts/kill-cnexus-runtime.ps1 and runtime_preflight.rs (:7864).
 
 !macro CNEXUS_PREFLIGHT_WARN
   DetailPrint "CNexus: checking environment for port/process conflicts..."
-  nsExec::ExecToStack 'powershell -NoProfile -NonInteractive -Command "$$lines=@(); $$seen=@{}; function Add($$k,$$p,$$n,$$d){ if(-not $$p -or $$seen[$$p]){return}; $$seen[$$p]=1; $$lines += ($$k+''|PID ''+$$p+'' (''+$$n+'') ''+$$d) }; Get-NetTCPConnection -LocalPort 8000 -State Listen -EA SilentlyContinue | %% { $$p=$$_.OwningProcess; $$pr=Get-Process -Id $$p -EA SilentlyContinue; $$cmd=(Get-CimInstance Win32_Process -Filter (''ProcessId=''+$$p) -EA SilentlyContinue).CommandLine; Add ''port_8000'' $$p $$(if($$pr){$$pr.ProcessName}else{''?''}) $$(if($$cmd){$$cmd}else{''listening''}) }; Get-CimInstance Win32_Process -EA SilentlyContinue | ? { ($$_.Name -in ''python.exe'',''pythonw.exe'') -and ($$_.CommandLine -match ''api\.main'') -and ($$_.CommandLine -notmatch ''runtime-bundle'') } | %% { Add ''dev_api'' $$_.ProcessId $$_.Name $$_.CommandLine }; if($$lines.Count -eq 0){ exit 0 }; $$lines -join [char]10"'
+  nsExec::ExecToStack 'powershell -NoProfile -NonInteractive -Command "$$lines=@(); $$seen=@{}; function Add($$k,$$p,$$n,$$d){ if(-not $$p -or $$seen[$$p]){return}; $$seen[$$p]=1; $$lines += ($$k+''|PID ''+$$p+'' (''+$$n+'') ''+$$d) }; foreach($$port in 7864,3000){ Get-NetTCPConnection -LocalPort $$port -State Listen -EA SilentlyContinue | %% { $$p=$$_.OwningProcess; $$pr=Get-Process -Id $$p -EA SilentlyContinue; $$cmd=(Get-CimInstance Win32_Process -Filter (''ProcessId=''+$$p) -EA SilentlyContinue).CommandLine; Add (''port_''+$$port) $$p $$(if($$pr){$$pr.ProcessName}else{''?''}) $$(if($$cmd){$$cmd}else{''listening''}) } }; Get-CimInstance Win32_Process -EA SilentlyContinue | ? { ($$_.Name -in ''python.exe'',''pythonw.exe'') -and ($$_.CommandLine -match ''app_v2\.py|runtime-bundle|CNexus2\.0'') } | %% { Add ''python_gateway'' $$_.ProcessId $$_.Name $$_.CommandLine }; Get-CimInstance Win32_Process -EA SilentlyContinue | ? { $$_.Name -in ''cnexus-product.exe'',''cnexus-runtime.exe'' } | %% { Add ''cnexus_ui'' $$_.ProcessId $$_.Name $$_.CommandLine }; if($$lines.Count -eq 0){ exit 0 }; $$lines -join [char]10"'
   Pop $0
   Pop $1
   StrCmp $1 "" preflight_ok 0
-    MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "检测到环境冲突（端口 8000 或开发版 Runtime）：$\n$\n$1$\n$\n安装/升级将停止上述进程后继续。是否继续？" IDOK preflight_ok IDCANCEL preflight_abort
+    MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "检测到环境冲突（端口 7864/3000 或 CNexus 网关进程）：$\n$\n$1$\n$\n安装/升级将停止上述进程后继续。是否继续？" IDOK preflight_ok IDCANCEL preflight_abort
   preflight_abort:
     Abort "安装已取消：请先关闭冲突进程后重试。"
   preflight_ok:
@@ -17,7 +18,7 @@
   nsis_tauri_utils::KillProcess "CNexus.exe"
   nsis_tauri_utils::KillProcess "cnexus-product.exe"
   nsis_tauri_utils::KillProcess "cnexus-runtime.exe"
-  nsExec::ExecToLog 'powershell -NoProfile -NonInteractive -Command "$$names=@(''python.exe'',''pythonw.exe''); Get-CimInstance Win32_Process | Where-Object { ($$names -contains $$_.Name) -and ($$_.CommandLine -match ''api\.main'' -or $$_.CommandLine -match ''runtime-bundle'') } | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }; Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { taskkill /F /T /PID $$($$_.OwningProcess) 2>$$null }"'
+  nsExec::ExecToLog 'powershell -NoProfile -NonInteractive -Command "$$names=@(''python.exe'',''pythonw.exe''); Get-CimInstance Win32_Process -EA SilentlyContinue | Where-Object { ($$names -contains $$_.Name) -and $$_.CommandLine -and ($$_.CommandLine -match ''app_v2\.py'' -or $$_.CommandLine -match ''runtime-bundle'' -or $$_.CommandLine -match ''CNexus2\.0'') } | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }; foreach($$port in 7864,3000){ Get-NetTCPConnection -LocalPort $$port -State Listen -ErrorAction SilentlyContinue | ForEach-Object { taskkill /F /T /PID $$($$_.OwningProcess) 2>$$null } }"'
 !macroend
 
 !macro NSIS_HOOK_POSTINSTALL
@@ -66,7 +67,7 @@
 !macroend
 
 !macro NSIS_HOOK_PREINSTALL
-  ; Warn before stopping conflicting dev Runtime / :8000 listeners.
+  ; Warn before stopping conflicting gateway listeners / runtime processes.
   !insertmacro CNEXUS_PREFLIGHT_WARN
   ; Re-install / upgrade: ensure old Runtime tree is gone.
   !insertmacro CNEXUS_KILL_RUNTIME

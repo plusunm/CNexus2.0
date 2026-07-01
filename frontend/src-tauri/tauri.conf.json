@@ -46,6 +46,7 @@
     ],
     "resources": [
       "runtime-bundle/",
+      "resources/help/",
       "icons/icon.ico",
       "windows/restart-cnexus-desktop.ps1",
       "windows/CNexus-restart.bat"

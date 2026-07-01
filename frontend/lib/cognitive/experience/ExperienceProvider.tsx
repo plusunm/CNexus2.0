@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { parseOverviewView } from "@/cnexus-kernel/shellTypes";
+import { parseSecondBrainTabFromSearch } from "./deepLink";
 import type { CognitiveDialect } from "../projection/copyLexicon";
 import {
   defaultExperiencePersona,
@@ -57,11 +58,17 @@ export function ExperienceProvider({ children }: { children: ReactNode }) {
     const urlPersona = resolvePersonaFromLocation();
     const stored = loadExperiencePersona();
     setPersonaState(urlPersona ?? stored ?? defaultExperiencePersona());
+
+    const urlTab = parseSecondBrainTabFromSearch(window.location.search);
+    if (urlTab) setSecondBrainTabState(urlTab);
+
     setHydrated(true);
 
     const onPop = () => {
       const next = resolvePersonaFromLocation();
       if (next) setPersonaState(next);
+      const tab = parseSecondBrainTabFromSearch(window.location.search);
+      if (tab) setSecondBrainTabState(tab);
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -74,7 +81,13 @@ export function ExperienceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setSecondBrainTab = useCallback((tab: SecondBrainTab) => {
-    setSecondBrainTabState(normalizeSecondBrainTab(tab));
+    const normalized = normalizeSecondBrainTab(tab);
+    setSecondBrainTabState(normalized);
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (normalized === "chat") url.searchParams.delete("tab");
+    else url.searchParams.set("tab", normalized);
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
   }, []);
 
   const dialect = PERSONA_DEFAULT_DIALECT[persona];

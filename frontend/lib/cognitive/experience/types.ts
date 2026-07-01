@@ -38,6 +38,9 @@ export const LAB_ONLY_VIEWS = new Set([
 
 export type SecondBrainTab =
   | "chat"
+  | "thinking"
+  | "timeline"
+  | "cards"
   | "memory"
   | "upload"
   | "organize"
@@ -51,6 +54,9 @@ export type SecondBrainTab =
 
 export const SECOND_BRAIN_TABS: SecondBrainTab[] = [
   "chat",
+  "thinking",
+  "timeline",
+  "cards",
   "memory",
   "upload",
   "organize",

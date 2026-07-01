@@ -342,3 +342,10 @@ export async function listenBootSession(onSession: (id: string) => void): Promis
     if (typeof id === "string" && id.length > 0) onSession(id);
   });
 }
+
+/** Restart embedded Python gateway sidecar (Tauri desktop only). */
+export async function restartRuntimeGateway(): Promise<void> {
+  if (!isTauriDesktop()) return;
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("restart_runtime_sidecar");
+}

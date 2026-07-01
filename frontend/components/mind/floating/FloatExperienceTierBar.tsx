@@ -7,7 +7,11 @@ import { useLanguageProjection } from "../LanguageProjectionSwitch";
 import { projectCopy } from "@/lib/cognitive/projection/projectCopy";
 import { projectLabel } from "@/lib/spine/labels";
 import { PERSONA_LABELS } from "@/lib/cognitive/experience/types";
-import { isFloatPersonalEdition, personalLabUiUrl, personalMainUiUrl } from "@/lib/floatPersonal";
+import {
+  buildSecondBrainDashboardRoute,
+  resolveSecondBrainOpenUrl,
+} from "@/lib/cognitive/experience/deepLink";
+import { isFloatPersonalEdition, personalLabUiUrl } from "@/lib/floatPersonal";
 import { isTauriDesktop, openTauriDashboard } from "@/lib/tauriDesktop";
 
 /** Float expand header — open Second Brain / Cognitive Lab in full dashboard windows. */
@@ -17,13 +21,11 @@ export function FloatExperienceTierBar() {
   const lang = projection === "both" ? "zh" : projection;
 
   const openMainWindow = () => {
-    const route = isFloatPersonalEdition() ? "/" : "/shell?layout=overview";
     if (isTauriDesktop()) {
-      void openTauriDashboard(route);
+      void openTauriDashboard(buildSecondBrainDashboardRoute({ from: "float" }));
       return;
     }
-    const url = isFloatPersonalEdition() ? personalMainUiUrl() : `${window.location.origin}${route}`;
-    window.open(url, "_blank", "noopener,noreferrer");
+    window.open(resolveSecondBrainOpenUrl({ from: "float" }), "_blank", "noopener,noreferrer");
   };
 
   const openLabWindow = () => {

@@ -9,6 +9,7 @@ import { useCognitiveCopy, EmergenceObject } from "@/lib/cognitive";
 import { WhyExplainSheet } from "./WhyExplainSheet";
 import { SbSection, SbCard, SbStat, SbChip, SbEmptyState } from "./SbUIKit";
 import { PromoteToL4Button } from "../PromoteToL4Button";
+import { RelationshipMemoryArchive } from "./RelationshipMemoryArchive";
 import { MEMORY_LEVEL_LABEL, resolveMemoryLevel } from "@/lib/memoryPromote";
 import type { CognitiveDiscoveryBlock, CognitiveInsightBlock } from "@/lib/cognitiveTypes";
 import type { CognitiveObject } from "@/lib/cognitive";
@@ -166,6 +167,8 @@ export function MemoryTab({ onOpenLab }: Props) {
           </ul>
         )}
       </SbSection>
+
+      <RelationshipMemoryArchive />
 
       <WhyExplainSheet
         object={explainObject ?? { ref: { domain: "emergence", id: "" }, titleKey: "emergentInsight", consumerSummary: "" }}

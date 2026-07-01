@@ -14,7 +14,10 @@ const edition =
 
 const gatewayPort = process.env.CNEXUS_GATEWAY_PORT ?? "7864";
 const personalGateway = `http://127.0.0.1:${gatewayPort}`;
-const apiBase = process.env.CNEXUS_API_BASE ?? personalGateway;
+// Empty apiBase → browser uses same origin (LAN / localhost both work).
+const apiBase =
+  process.env.CNEXUS_API_BASE ??
+  (edition === "personal" ? "" : personalGateway);
 const wsBase =
   process.env.CNEXUS_WS_BASE ??
   (edition === "personal" ? "" : apiBase.replace(/^http/, "ws"));
